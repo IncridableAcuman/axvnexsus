@@ -14,6 +14,7 @@ import uz.axm.nexus.assessments.infrastructure.AssessmentQuestionRepository;
 import uz.axm.nexus.assessments.infrastructure.AssessmentRepository;
 import uz.axm.nexus.assessments.infrastructure.StudentAnswerRepository;
 import uz.axm.nexus.assessments.infrastructure.StudentAssessmentAttemptRepository;
+import uz.axm.nexus.grading.application.GradingAndGamificationService;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -28,6 +29,7 @@ public class AssessmentService {
     private final AssessmentQuestionRepository questionRepository;
     private final StudentAssessmentAttemptRepository attemptRepository;
     private final StudentAnswerRepository answerRepository;
+    private final GradingAndGamificationService gradingService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public List<Assessment> getAllAssessments(String subject, String gradeLevel, Long groupId) {
@@ -246,6 +248,11 @@ public class AssessmentService {
 
         StudentAssessmentAttempt saved = attemptRepository.save(attempt);
         log.info("Test topshirildi va avto-baholandi: AttemptID={}, Score={}/{}", attemptId, totalEarned, maxScore);
+
+        if ("EVALUATED".equals(saved.getStatus())) {
+            applyAssessmentGamificationRewards(saved, assessment);
+        }
+
         return saved;
     }
 
@@ -274,7 +281,53 @@ public class AssessmentService {
         attempt.setGradedByMentorId(mentorId);
         attempt.setGradedAt(LocalDateTime.now());
 
-        return attemptRepository.save(attempt);
+        StudentAssessmentAttempt saved = attemptRepository.save(attempt);
+        applyAssessmentGamificationRewards(saved, getAssessmentById(saved.getAssessmentId()));
+        return saved;
+    }
+
+    private void applyAssessmentGamificationRewards(StudentAssessmentAttempt attempt, Assessment assessment) {
+        if (gradingService == null || attempt.getStudentId() == null) return;
+        try {
+            int score = attempt.getTotalScore() != null ? attempt.getTotalScore() : 0;
+            String idempKey = "test_attempt_" + attempt.getId();
+            gradingService.awardPoints(
+                    attempt.getStudentId(),
+                    score,
+                    "ASSESSMENT",
+                    String.valueOf(attempt.getId()),
+                    "StudentAssessmentAttempt",
+                    idempKey,
+                    "Test natijasi (" + assessment.getTitle() + "): " + score + " ball (" + attempt.getPercentage() + "%)",
+                    attempt.getGradedByMentorId()
+            );
+
+            if (attempt.getPercentage() != null && attempt.getPercentage() >= 100.0) {
+                String bonusKey = "perfect_test_" + attempt.getId();
+                gradingService.awardPoints(
+                        attempt.getStudentId(),
+                        50,
+                        "ACHIEVEMENT_UNLOCKED",
+                        String.valueOf(attempt.getId()),
+                        "StudentAssessmentAttempt",
+                        bonusKey,
+                        "Mukammal 100% natija bonusi! (" + assessment.getTitle() + ")",
+                        attempt.getGradedByMentorId()
+                );
+                gradingService.unlockAchievementIfEligible(attempt.getStudentId(), "FIRST_PERFECT_TEST");
+            }
+
+            gradingService.recordDailyActivity(attempt.getStudentId(), "ASSESSMENT_COMPLETION");
+
+            long passedCount = attemptRepository.findByStudentId(attempt.getStudentId()).stream()
+                    .filter(a -> "EVALUATED".equals(a.getStatus()) && a.getPercentage() != null && a.getPercentage() >= 60.0)
+                    .count();
+            if (passedCount >= 3) {
+                gradingService.unlockAchievementIfEligible(attempt.getStudentId(), "TEST_EXPERT");
+            }
+        } catch (Exception e) {
+            log.error("Test topshirishda gamifikatsiya mukofotlarini hisoblashda xatolik: {}", e.getMessage(), e);
+        }
     }
 
     public List<StudentAssessmentAttempt> getStudentAttempts(Long studentId) {

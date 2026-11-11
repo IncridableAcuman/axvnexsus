@@ -499,6 +499,7 @@ export interface LessonPlanDto {
   status: 'DRAFT' | 'REVIEW' | 'PUBLISHED' | 'COMPLETED' | 'CANCELLED' | 'ARCHIVED' | string;
   actualOutcome?: string;
   mentorNotes?: string;
+  presentationSlides?: string;
   isTemplate?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -714,6 +715,10 @@ export interface LeaderboardEntryDto {
   highestSingleAward: number;
   earliestAchievedAt?: string;
   badgeCount: number;
+  currentStreak?: number;
+  longestStreak?: number;
+  level?: number;
+  levelName?: string;
 }
 
 export interface GroupLeaderboardEntryDto {
@@ -724,11 +729,69 @@ export interface GroupLeaderboardEntryDto {
   averagePoints: number;
 }
 
+export interface StudentStreakDto {
+  studentId: number;
+  currentStreak: number;
+  longestStreak: number;
+  checkedInToday: boolean;
+  lastActivityDate?: string;
+  streakFreezeCount: number;
+  totalActiveDays: number;
+  nextMilestoneDays: number;
+  nextMilestoneReward: number;
+}
+
+export interface StreakCheckInResultDto {
+  studentId: number;
+  alreadyRecorded: boolean;
+  currentStreak: number;
+  longestStreak: number;
+  bonusXpEarned: number;
+  message: string;
+  lastActivityDate: string;
+  streakFreezeAvailable: boolean;
+}
+
+export interface LevelInfoDto {
+  level: number;
+  title: string;
+  minXp: number;
+  maxXp: number;
+  progressPercent: number;
+  badgeName: string;
+  color: string;
+}
+
+export interface MetricItemDto {
+  metric: string;
+  value: string;
+  description: string;
+  categoryOrCondition: string;
+}
+
+export interface GamificationMetricsDto {
+  title: string;
+  gradingScales: MetricItemDto[];
+  xpRules: MetricItemDto[];
+  playerLevels: MetricItemDto[];
+  streakRules: MetricItemDto[];
+}
+
 export interface StudentGamificationProfileDto {
   studentId: number;
   displayName: string;
   totalPoints: number;
   rank: number;
+  currentStreak?: number;
+  longestStreak?: number;
+  checkedInToday?: boolean;
+  totalActiveDays?: number;
+  level?: number;
+  levelName?: string;
+  currentLevelMinXp?: number;
+  nextLevelXp?: number;
+  levelProgressPercent?: number;
+  streakDetails?: StudentStreakDto;
   recentTransactions: PointTransactionDto[];
   unlockedAchievements: StudentAchievementDto[];
   availableAchievements: AchievementDto[];
@@ -931,6 +994,7 @@ export type AiRole = 'MENTOR_ASSISTANT' | 'STUDENT_ASSISTANT';
 
 export type AiIntent =
   | 'LESSON_PLAN'
+  | 'PRESENTATION_SLIDES'
   | 'CONCEPT_EXPLANATION'
   | 'PRACTICAL_EXERCISES'
   | 'QUIZ_GENERATION'
@@ -994,6 +1058,7 @@ export interface AiCompletionResponse {
   advisoryDisclaimer: string;
   generatedQuizQuestions?: AiQuizQuestionDto[];
   generatedLessonPlan?: AiLessonPlanDetailsDto;
+  generatedPresentationSlides?: string[];
   errorMessage?: string;
 }
 

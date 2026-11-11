@@ -47,6 +47,10 @@ public class MockAiProviderAdapter implements AiProviderAdapter {
         AiIntent intent = req.getIntent() != null ? req.getIntent() : AiIntent.LESSON_PLAN;
 
         switch (intent) {
+            case PRESENTATION_SLIDES -> {
+                return generatePresentationSlides(req, lang, subject, grade, topic);
+            }
+
             case LESSON_PLAN -> {
                 AiLessonPlanDetailsDto plan = AiLessonPlanDetailsDto.builder()
                         .title(topic + " — 80 daqiqalik dars rejasi")
@@ -243,6 +247,271 @@ public class MockAiProviderAdapter implements AiProviderAdapter {
                         .build();
             }
         }
+    }
+
+    private AiCompletionResponse generatePresentationSlides(AiPromptRequest req, String lang, String subject, String grade, String topic) {
+        String lowerTopic = (topic + " " + subject).toLowerCase(java.util.Locale.ROOT);
+        String slidesContent;
+
+        if (lowerTopic.contains("python") || lowerTopic.contains("algoritm") || lowerTopic.contains("data structure")) {
+            slidesContent = """
+                    # 🚀 1. %s
+                    **Muhammad Al-Xorazmiy Vorislari • %s O‘quv Dasturi**
+                    - **Fan:** %s
+                    - **Dars formati:** 80 daqiqalik interaktiv ma’ruza va live-coding
+                    - **Kutilayotgan natija:** O‘quvchilar sintaksis, xotirada saqlanish mexanizmi va amaliy algoritmlarni tushunishadi.
+
+                    > [!NOTE]
+                    > Python — o‘rganish oson, lekin sanoatda sun’iy intellekt, backend va data analytics uchun eng kuchli dasturlash tili.
+
+                    > 🎙️ **Spiker izohi:** Darsni o‘quvchilardan "Nega dunyoning eng yirik kompaniyalari Python tilini tanlaydi?" degan qiziqarli savol bilan boshlang.
+                    ---
+                    # 💡 2. Asosiy Sintaksis va Ma’lumotlar Turlari
+                    - **Dinamik tiplash:** O‘zgaruvchi turini oldindan e’lon qilish shart emas.
+                    - **Asosiy turlar:** `int`, `float`, `str`, `bool`
+                    - **Chiziqli strukturalar:** `list` (o‘zgaruvchan), `tuple` (o‘zgarmas), `dict` (kalit-qiymat), `set` (noyob)
+
+                    ```python
+                    # Ma'lumotlar tuzilmalariga misol:
+                    students = ["Zuhra", "Ali", "Madina"]
+                    grades = {"Ali": 95, "Zuhra": 98, "Madina": 92}
+                    print(f"Top o'quvchi: {max(grades, key=grades.get)}")
+                    ```
+
+                    > 🎙️ **Spiker izohi:** Terminalda kodni darhol `python main.py` orqali yurgazib, natijani ekranda ko‘rsating.
+                    ---
+                    # ⚡ 3. Algoritmik Fikrlash & Big-O Murakkabligi
+                    - **Vaqt murakkabligi (Time Complexity):** Kod qancha vaqtda bajariladi?
+                    - **O(1) — O‘zgarmas vaqt:** Lug‘atdan kalit orqali qiymat olish.
+                    - **O(N) — Chiziqli vaqt:** Ro‘yxatdagi har bir elementni bir martadan tekshirish.
+                    - **O(log N) — Logarifmik vaqt:** Binary Search (Ikkilik qidiruv).
+
+                    ```python
+                    # Ikkilik qidiruv (Binary Search) algoritmi - O(log N)
+                    def binary_search(arr, target):
+                        left, right = 0, len(arr) - 1
+                        while left <= right:
+                            mid = (left + right) // 2
+                            if arr[mid] == target:
+                                return mid
+                            elif arr[mid] < target:
+                                left = mid + 1
+                            else:
+                                right = mid - 1
+                        return -1
+                    ```
+
+                    > 🎙️ **Spiker izohi:** Telefon kitobidan ismni qidirish misolini keltiring: o‘rtasidan ochib, qaysi yarmida ekanini aniqlash.
+                    ---
+                    # ⚠️ 4. Muhim Qoidalar & Algoritmik Xatoliklar
+                    1. **Indeks chegarasidan chiqish (IndexError):** Ro‘yxat uzunligidan katta indeksga murojaat qilish.
+                    2. **Kalit topilmasligi (KeyError):** Lug‘atda yo‘q kalitni so‘rash (buning o‘rniga `.get()` ishlatish tavsiya etiladi).
+                    3. **O‘zgaruvchan qiymatlarni nusxalash (Shallow vs Deep Copy):** Ro‘yxatni `b = a` deb belgilash bitta xotiraga havola qiladi.
+
+                    > [!TIP]
+                    > Toza kod (Clean Code): O‘zgaruvchilarga `x`, `y` emas, ma’noli nomlar bering (masalan: `student_scores`, `user_id`).
+
+                    > 🎙️ **Spiker izohi:** O‘quvchilarga xato matnini (Traceback) o‘qishdan qo‘rqmaslikni va oxirgi qator xatoning aniq joyini ko‘rsatishini eslatib o‘ting.
+                    ---
+                    # 💻 5. Amaliy Laboratoriya Topshirig‘i (25 daqiqa)
+                    **Mavzu bo‘yicha mini-loyiha:**
+                    1. 10 ta o‘quvchining ismlari va test ballaridan iborat ro‘yxat tuzing.
+                    2. Eng yuqori, eng past va o‘rtacha ballni hisoblovchi funksiya yozing.
+                    3. Berilgan ball bo‘yicha o‘quvchini topuvchi qidiruv funksiyasini integratsiya qiling.
+
+                    ```python
+                    # Boshlang'ich shablon:
+                    def analyze_results(data):
+                        # Amaliyot qismini to'ldiring
+                        pass
+                    ```
+
+                    > 🎙️ **Spiker izohi:** 25 daqiqa davomida sinf bo‘ylab yurib, sekinroq o‘zlashtirayotgan o‘quvchilarga sokratik maslahatlar bering.
+                    ---
+                    # 🎯 6. Dars Xulosasi, Test & Uy Vazifasi
+                    - **O‘rganildi:** Ma’lumotlar tuzilmalari, Big-O tushunchasi va qidiruv algoritmlari.
+                    - **Nazorat testi:** Mavzu bo‘yicha platformadagi oraliq testni topshirish (Streak va XP olish uchun!).
+                    - **Uyga vazifa:** LeetCode / platformadagi 2 ta algoritmik masalani yechib, kodni GitHub ga push qilish.
+
+                    > 🎙️ **Spiker izohi:** Darsni keyingi dars mavzusi anonsi bilan yakunlang va faol qatnashganlarni rag‘batlantiring!
+                    """.formatted(topic, grade, subject);
+        } else if (lowerTopic.contains("backend") || lowerTopic.contains("sql") || lowerTopic.contains("api") || lowerTopic.contains("baza")) {
+            slidesContent = """
+                    # 🚀 1. %s
+                    **Muhammad Al-Xorazmiy Vorislari • %s O‘quv Dasturi**
+                    - **Fan:** %s
+                    - **Dars formati:** 80 daqiqalik chuqurlashtirilgan muhandislik ma’ruzasi
+                    - **Kutilayotgan natija:** Backend servislar, REST API va SQL relyatsion ma’lumotlar bazasi integratsiyasini to‘liq anglash.
+
+                    > [!NOTE]
+                    > Zamonaviy ilovalarning 90% qismi mustahkam backend va xavfsiz ma’lumotlar bazasi ustiga quriladi.
+
+                    > 🎙️ **Spiker izohi:** Darsni mijoz (frontend) va server o‘rtasidagi muloqot qanday kechishini tasvirlashdan boshlang.
+                    ---
+                    # 🌐 2. RESTful API Tamoyillari va HTTP Metodlari
+                    - **Mijoz-Server (Client-Server):** Frontend faqat interfeys, Backend esa biznes-mantiq va ma’lumotlarni boshqaradi.
+                    - **Holatsizlik (Statelessness):** Har bir so‘rov o‘zida to‘liq autentifikatsiya va kerakli ma’lumotni olib yurishi shart.
+                    - **HTTP Metodlari:**
+                      - `GET` — Ma’lumotlarni o‘qish
+                      - `POST` — Yangi resurs yaratish
+                      - `PUT / PATCH` — Ma’lumotni yangilash
+                      - `DELETE` — Resursni o‘chirish
+
+                    ```http
+                    POST /api/students HTTP/1.1
+                    Host: api.nexus.uz
+                    Content-Type: application/json
+
+                    {
+                      "fullName": "Aziz Rahimov",
+                      "gradeLevel": "10-sinf",
+                      "groupCode": "AXM-102"
+                    }
+                    ```
+
+                    > 🎙️ **Spiker izohi:** Postman yoki Swagger UI orqali bitta jonli HTTP so‘rov yuborib, 201 Created javobini ko‘rsating.
+                    ---
+                    # 🗄️ 3. SQL Relyatsion Ma’lumotlar Bazasi (PostgreSQL)
+                    - **Jadvallar (Tables) & Primary Key:** Har bir qatordagi noyob identifikator (`id BIGSERIAL PRIMARY KEY`).
+                    - **Bog‘lanishlar (Foreign Key / Relations):** Birga-ko‘p (1:N), Ko‘pga-ko‘p (N:M).
+                    - **ACID Tamoyillari:** Atomiklik, Izolyatsiya, Mustahkamlik (Tranzaksiyalar xavfsizligi).
+
+                    ```sql
+                    -- Talabalar va baholar o'rtasidagi bog'lanish:
+                    SELECT s.full_name, g.score, a.title AS assessment_title
+                    FROM students s
+                    JOIN grades g ON s.id = g.student_id
+                    JOIN assessments a ON g.assessment_id = a.id
+                    WHERE s.grade_level = '10-sinf'
+                    ORDER BY g.score DESC;
+                    ```
+
+                    > 🎙️ **Spiker izohi:** JOIN operatori orqali ikkita alohida jadval qanday qilib yagona mantiqiy hisobotga aylanishini doskada chizing.
+                    ---
+                    # 🛡️ 4. Xavfsizlik: SQL Injection va Validatsiya
+                    - **SQL Injection:** Foydalanuvchi kiritgan matn to‘g‘ridan-to‘g‘ri SQL buyrug‘iga qo‘shilganda baza ma’lumotlari o‘g‘irlanishi xavfi.
+                    - **Yechim: Parametrlangan so‘rovlar (Prepared Statements):** ORM (Hibernate/Spring Data JPA) bu xavfni avtomatik bartaraf etadi.
+
+                    ```java
+                    // To'g'ri va xavfsiz repository usuli:
+                    @Query("SELECT s FROM Student s WHERE s.email = :email")
+                    Optional<Student> findByEmailSafe(@Param("email") String email);
+                    ```
+
+                    > [!IMPORTANT]
+                    > Hech qachon foydalanuvchi ma’lumotini SQL so‘roviga `+` bilan ulamang!
+
+                    > 🎙️ **Spiker izohi:** `' OR '1'='1` hujumi qanday ishlashini doskada xavfsizlik darsi sifatida ko‘rsating.
+                    ---
+                    # 💻 5. Amaliy Laboratoriya: REST Endpoint Yaratish
+                    **25 daqiqalik amaliy vazifa:**
+                    1. Controller klassi yaratish: `@RestController` va `@RequestMapping("/api/lessons")`.
+                    2. Service qatlami orqali ma’lumotlar bazasiga murojaat qilish.
+                    3. Xatoliklarni `GlobalExceptionHandler` orqali chiroyli JSON holatida qaytarish.
+
+                    ```java
+                    @PostMapping
+                    public ResponseEntity<ApiResponse<LessonDto>> createLesson(@Valid @RequestBody CreateLessonRequest req) {
+                        LessonDto created = lessonService.create(req);
+                        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(created));
+                    }
+                    ```
+
+                    > 🎙️ **Spiker izohi:** O‘quvchilarga terminalda `./gradlew bootRun` buyrug‘ini berib, API ning ishlashini tekshirishni ko‘rsating.
+                    ---
+                    # 🎯 6. Xulosa, Dars Natijasi va Uyga Vazifa
+                    - **O‘rganildi:** REST me’morchiligi, HTTP status kodlari (200, 201, 400, 404, 500) va SQL JOIN so‘rovlari.
+                    - **Nazorat testi:** Backend va SQL bo‘yicha 10 ta oraliq nazorat savollarini yechish.
+                    - **Uyga vazifa:** O‘z mini-loyihangiz uchun 3 ta jadvaldan iborat DB diagrammasini tuzish va GitHub ga yuklash.
+
+                    > 🎙️ **Spiker izohi:** Faol qatnashgan o‘quvchilarga XP ballari qo‘shilganini e’lon qiling.
+                    """.formatted(topic, grade, subject);
+        } else {
+            slidesContent = """
+                    # 🚀 1. %s
+                    **Muhammad Al-Xorazmiy Vorislari • %s O‘quv Dasturi**
+                    - **Fan:** %s
+                    - **Dars formati:** 80 daqiqalik amaliy ma’ruza (PQ-3274 standarti)
+                    - **Kutilayotgan natija:** Dars oxirida o‘quvchilar mavzuni to‘liq tushunib, mustaqil amaliy topshiriqni bajara oladilar.
+
+                    > [!NOTE]
+                    > Al-Xorazmiy vorislari dasturi faqat nazariyaga emas, balki real dasturiy mahsulotlar yaratishga qaratilgan!
+
+                    > 🎙️ **Spiker izohi:** Darsni o‘quvchilardan mavzuning kundalik hayotdagi o‘rni haqida 2 daqiqalik savol-javob bilan boshlang.
+                    ---
+                    # 🧠 2. Asosiy Nazariy Tushuncha va Me’morchilik
+                    - **Poydevor tamoyillari:** Har qanday dasturiy tizim qat’iy arxitektura va standartlarga tayanadi.
+                    - **Modullilik:** Murakkab muammolarni kichik, mustaqil qismlarga (komponentlarga) ajratish.
+                    - **Ishlash mexanizmi:** Kiruvchi ma’lumotlar (Input) -> Qayta ishlash (Processing) -> Chiquvchi natija (Output).
+
+                    ```text
+                    +--------------------+      +--------------------+      +--------------------+
+                    |   KIRUVCHI (INPUT) | ---> |  QAYTA ISHLASH     | ---> |  CHIQUVCHI NATIJA  |
+                    | (Foydalanuvchi/Klav|      | (Algoritm/CPU/API) |      | (Ekran/Baza/Javob) |
+                    +--------------------+      +--------------------+      +--------------------+
+                    ```
+
+                    > 🎙️ **Spiker izohi:** Oddiy kalkulyator yoki qidiruv tizimi misolida Input -> Processing -> Output zanjirini tushuntiring.
+                    ---
+                    # ⚡ 3. Amaliy Tuzilma va Kod Standartlari
+                    - **Toza kod tamoyillari:** Tushunarli nomlash, ortiqcha takrorlanishlarning yo‘qligi (DRY — Don't Repeat Yourself).
+                    - **Semantik tuzilish:** Har bir element o‘z vazifasiga mos joyda va maqsadda ishlatilishi kerak.
+
+                    ```html
+                    <!-- Semantik va zamonaviy kod namunasi -->
+                    <main class="container">
+                      <section class="card">
+                        <h2>%s</h2>
+                        <p class="description">Al-Xorazmiy Vorislari ta'lim moduli</p>
+                        <button class="btn btn-primary" onclick="startModule()">Boshlash</button>
+                      </section>
+                    </main>
+                    ```
+
+                    > 🎙️ **Spiker izohi:** Kod yozishda faqat kompyuter emas, balki boshqa dasturchilar ham o‘qiy olishi muhimligini uqtiring.
+                    ---
+                    # 💡 4. Muhim Tavsiyalar & Xatoliklarni Oldini Olish
+                    1. **Har bir qadamni tekshiring (Testing):** Butun loyiha bitishini kutmasdan, har bir modulni yoziboq tekshiring.
+                    2. **Versiyalar nazorati (Git):** Har bir muvaffaqiyatli qadamdan so‘ng commit qiling.
+                    3. **Xavfsizlik va barqarorlik:** Foydalanuvchi kiritgan ma’lumotlarni doimo tekshiring (validation).
+
+                    > [!TIP]
+                    > Xatolik yuz berganda shoshilmang! Konsol (Console) yoki loglardagi xatolik xabarini diqqat bilan o‘qing.
+
+                    > 🎙️ **Spiker izohi:** Mentor o‘z tajribasidagi eng qiziq bir xatolik va uni qanday tuzatgani haqida 1 daqiqa hikoya qilib berishi mumkin.
+                    ---
+                    # 💻 5. Amaliy Laboratoriya Topshirig‘i (25 daqiqa)
+                    **Darsning amaliy qismi bo‘yicha topshiriq:**
+                    - Ko‘rsatilgan andoza asosida o‘z yechimingizni ishlab chiqing.
+                    - Juftlikda (pair-programming) bir-biringizning kodingizni tahlil qiling (Code Review).
+                    - Ishlayotgan natijani mentorga namoyish eting.
+
+                    > 🎙️ **Spiker izohi:** Mashg‘ulot vaqtida sinf bo‘ylab aylanib, qiynalayotgan o‘quvchilarga yo‘naltiruvchi savollar bering.
+                    ---
+                    # 🎯 6. Xulosa, Dars Natijasi va Uyga Vazifa
+                    - **O‘rganildi:** Mavzuning poydevor tamoyillari, toza kod yozish va amaliy topshiriq yechimi.
+                    - **Oraliq test:** Mavzuni mustahkamlash uchun platformadagi oraliq testni ishlang (XP ballari va streak hisobiga o‘tadi).
+                    - **Uyga vazifa:** Bajarilgan amaliy ishni takomillashtirish va shaxsiy loyihaga integratsiya qilish.
+
+                    > 🎙️ **Spiker izohi:** O‘quvchilarni bugungi faolligi uchun tabriklang va navbatdagi darsga qiziqish uyg‘oting.
+                    """.formatted(topic, grade, subject, topic);
+        }
+
+        List<String> slides = java.util.Arrays.stream(slidesContent.split("(?m)^---+$"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+
+        return AiCompletionResponse.builder()
+                .success(true)
+                .role(AiRole.MENTOR_ASSISTANT)
+                .intent(AiIntent.PRESENTATION_SLIDES)
+                .provider("mock")
+                .model("nexus-pedagogical-v2")
+                .tokensUsed(620)
+                .content(slidesContent)
+                .generatedPresentationSlides(slides)
+                .build();
     }
 
     private AiCompletionResponse handleStudentUseCases(AiPromptRequest req, String lang, String subject, String grade, String topic) {

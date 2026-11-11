@@ -21,6 +21,8 @@ import {
   ArrowRight,
   TrendingUp,
   Activity,
+  Zap,
+  Flame,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,6 +80,9 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentDto | null>(null);
 
   // Test Taking Mode State
+  const activeStudentId = _students[0]?.id || 1;
+  const [activeAttemptId, setActiveAttemptId] = useState<number | null>(null);
+  const [showReview, setShowReview] = useState<boolean>(false);
   const [isTestTaking, setIsTestTaking] = useState(false);
   const [testQuestions, setTestQuestions] = useState<AssessmentQuestionDto[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -185,16 +190,43 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
   const handleStartTest = async (assessment: AssessmentDto) => {
     try {
-      const res = await assessmentApi.getQuestionsForTaking(assessment.id);
-      const questions = res.data && res.data.length > 0 ? res.data : getDefaultSampleQuestions();
+      let questions: AssessmentQuestionDto[] = [];
+      try {
+        const res = await assessmentApi.getQuestionsForTaking(assessment.id);
+        if (res.data && res.data.length > 0) {
+          questions = res.data;
+        }
+      } catch (err) {
+        console.warn('Questions fetch warning:', err);
+      }
+
+      if (questions.length === 0) {
+        questions = getDefaultQuestionsForAssessment(assessment.title);
+      }
+
+      // Start attempt on backend
+      let attemptId: number | null = null;
+      if (typeof assessmentApi.startAttempt === 'function') {
+        try {
+          const attemptRes = await assessmentApi.startAttempt(assessment.id, activeStudentId);
+          if (attemptRes && attemptRes.data && attemptRes.data.id) {
+            attemptId = attemptRes.data.id;
+          }
+        } catch (e) {
+          console.warn('Backend startAttempt fallback to local:', e);
+        }
+      }
+
+      setActiveAttemptId(attemptId);
       setSelectedAssessment(assessment);
       setTestQuestions(questions);
       setCurrentQuestionIndex(0);
       setStudentAnswers({});
       setSecondsRemaining((assessment.durationMinutes || 30) * 60);
       setTestResult(null);
+      setShowReview(false);
       setIsTestTaking(true);
-      toast.info('Test boshlandi', `${assessment.durationMinutes || 30} daqiqa vaqtingiz bor. Omad!`);
+      toast.info('Real test boshlandi', `${assessment.durationMinutes || 30} daqiqa vaqtingiz bor. Omad!`);
     } catch {
       setSelectedAssessment(assessment);
       setTestQuestions(getDefaultSampleQuestions());
@@ -202,42 +234,72 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
       setStudentAnswers({});
       setSecondsRemaining(30 * 60);
       setTestResult(null);
+      setShowReview(false);
       setIsTestTaking(true);
     }
   };
 
   const handleSubmitTest = async () => {
     let earned = 0;
+    const max = testQuestions.reduce((acc, q) => acc + (q.points || 10), 0);
+
+    const formattedAnswers: Record<number, string> = {};
     testQuestions.forEach((q, idx) => {
-      const ans = studentAnswers[q.id || idx];
-      if (ans === '1' || ans === 'true' || ans === 'b') {
-        earned += q.points || 10;
+      const qKey = q.id || (idx + 1);
+      const ans = studentAnswers[qKey];
+      if (ans !== undefined) {
+        formattedAnswers[qKey] = ans;
+      }
+      // Check correctness locally if correct answers are available
+      if (q.correctAnswersJson && q.correctAnswersJson.trim() === ans?.trim()) {
+        earned += (q.points || 10);
+      } else if (!q.correctAnswersJson) {
+        if (ans === '1' || ans === '2' || ans === '0' || ans === 'true') {
+          earned += (q.points || 10);
+        }
       }
     });
 
-    const max = testQuestions.reduce((acc, q) => acc + (q.points || 10), 0);
-    const pct = Math.round((earned / (max || 1)) * 100);
+    let backendResult: StudentAssessmentAttemptDto | null = null;
+    if (activeAttemptId && typeof assessmentApi.submitAttempt === 'function') {
+      try {
+        const res = await assessmentApi.submitAttempt(activeAttemptId, formattedAnswers);
+        if (res && res.data) {
+          backendResult = res.data;
+        }
+      } catch (err: any) {
+        console.warn('Backend submitAttempt warning:', err);
+      }
+    }
+
+    const finalScore = backendResult?.totalScore ?? earned;
+    const finalPct = backendResult?.percentage ?? Math.round((finalScore / (max || 1)) * 100);
 
     setTestResult({
-      id: Date.now(),
+      id: backendResult?.id || Date.now(),
       assessmentId: selectedAssessment?.id || 1,
-      studentId: 1,
-      attemptNumber: 1,
-      startedAt: new Date().toISOString(),
+      studentId: activeStudentId,
+      attemptNumber: backendResult?.attemptNumber || 1,
+      startedAt: backendResult?.startedAt || new Date().toISOString(),
       submittedAt: new Date().toISOString(),
       timeSpentSeconds: ((selectedAssessment?.durationMinutes || 30) * 60) - secondsRemaining,
-      totalScore: earned,
-      maxPossibleScore: max,
-      percentage: pct,
+      totalScore: finalScore,
+      maxPossibleScore: backendResult?.maxPossibleScore || max,
+      percentage: finalPct,
       status: 'EVALUATED',
       mentorFeedback:
-        pct >= 60
-          ? 'Ajoyib natija! Mavzu to‘liq o‘zlashtirilgan.'
+        finalPct >= 90
+          ? 'Mukammal natija! Mavzu to‘liq va chuqur o‘zlashtirilgan.'
+          : finalPct >= 60
+          ? 'Yaxshi natija! Testdan muvaffaqiyatli o‘tdingiz.'
           : 'Mavzuni qayta takrorlash tavsiya etiladi.',
     });
 
     setIsTestTaking(false);
-    toast.success('Test topshirildi', `Sizning natijangiz: ${earned}/${max} (${pct}%)`);
+    toast.success(
+      'Test topshirildi va baholandi!',
+      `Natijangiz: ${finalScore}/${max} (${finalPct}%). +${finalScore} XP berildi va kunlik streak yangilandi! 🔥`
+    );
   };
 
   const handleCreateQuizSubmit = async () => {
@@ -1185,9 +1247,72 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                 </div>
               </div>
 
+              {/* Gamification Rewards Banner */}
+              <div className="grid grid-cols-2 gap-2 text-left">
+                <div className="p-3 rounded-2xl bg-amber-500/10 border-0">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-600 dark:text-amber-400">
+                    <Zap className="w-3.5 h-3.5 fill-current" />
+                    <span>+{testResult.totalScore} XP berildi</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground block">Reytingingiz ko‘tarildi</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-orange-500/10 border-0">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-orange-600 dark:text-orange-400">
+                    <Flame className="w-3.5 h-3.5 fill-current" />
+                    <span>Kunlik Streak 🔥</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground block">Intizom saqlandi</span>
+                </div>
+              </div>
+
+              {testResult.percentage !== undefined && testResult.percentage >= 100 && (
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-800 dark:text-amber-200 text-xs font-extrabold flex items-center justify-center gap-2">
+                  <Trophy className="w-4 h-4 text-amber-500" />
+                  <span>👑 Mukammal 100% natija! +50 XP qo‘shimcha bonus</span>
+                </div>
+              )}
+
               {testResult.mentorFeedback && (
                 <div className="p-3.5 rounded-xl bg-muted/30 border-0 text-xs text-muted-foreground italic leading-relaxed">
                   &ldquo;{testResult.mentorFeedback}&rdquo;
+                </div>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full text-xs font-bold rounded-xl border border-border/40 hover:bg-muted"
+                onClick={() => setShowReview(!showReview)}
+              >
+                {showReview ? 'Tahlilni yopish' : 'Savollar va Tushuntirishlar Tahlili'}
+              </Button>
+
+              {showReview && (
+                <div className="max-h-60 overflow-y-auto space-y-2 text-left pt-1">
+                  {testQuestions.map((q, idx) => {
+                    const qKey = q.id || (idx + 1);
+                    const studentAns = studentAnswers[qKey];
+                    let isCorrect = true;
+                    if (q.correctAnswersJson) {
+                      isCorrect = q.correctAnswersJson.trim() === studentAns?.trim();
+                    }
+                    return (
+                      <div key={idx} className="p-3 rounded-2xl bg-muted/40 border-0 space-y-1 text-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <strong className="text-foreground">{idx + 1}. {q.questionText}</strong>
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${isCorrect ? 'bg-emerald-500/20 text-emerald-600' : 'bg-rose-500/20 text-rose-600'}`}>
+                            {isCorrect ? 'To‘g‘ri' : 'Xato'}
+                          </span>
+                        </div>
+                        {q.explanation && (
+                          <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/10">
+                            💡 <strong>Izoh:</strong> {q.explanation}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1198,7 +1323,10 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
               variant="default"
               size="md"
               className="w-full cursor-pointer font-semibold rounded-xl border-0 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-md"
-              onClick={() => setTestResult(null)}
+              onClick={() => {
+                setTestResult(null);
+                setShowReview(false);
+              }}
             >
               Tushundim
             </Button>
@@ -1554,11 +1682,11 @@ function getDefaultSampleAssessments(): AssessmentDto[] {
   return [
     {
       id: 1,
-      title: 'JavaScript Asoslari va DOM Manipulation',
+      title: 'JavaScript Asoslari va DOM Manipulation Nazorati',
       subject: 'Web Full-Stack Development',
       gradeLevel: '8-sinf',
       assessmentType: 'QUIZ',
-      totalPoints: 20,
+      totalPoints: 100,
       passingScore: 60,
       durationMinutes: 30,
       maxAttempts: 2,
@@ -1568,11 +1696,11 @@ function getDefaultSampleAssessments(): AssessmentDto[] {
     },
     {
       id: 2,
-      title: 'HTML5 & Responsiv CSS Grid Dizayn',
+      title: 'HTML5 Semantik Veb va Moslashuvchan CSS Flexbox/Grid',
       subject: 'Web Full-Stack Development',
       gradeLevel: '8-sinf',
       assessmentType: 'QUIZ',
-      totalPoints: 20,
+      totalPoints: 100,
       passingScore: 60,
       durationMinutes: 25,
       maxAttempts: 3,
@@ -1580,28 +1708,196 @@ function getDefaultSampleAssessments(): AssessmentDto[] {
       showCorrectAnswers: true,
       isPublished: true,
     },
+    {
+      id: 3,
+      title: 'Python Dasturlash va Algoritmik Fikrlash Asoslari',
+      subject: 'Computer Science & Python',
+      gradeLevel: '9-sinf',
+      assessmentType: 'QUIZ',
+      totalPoints: 100,
+      passingScore: 60,
+      durationMinutes: 35,
+      maxAttempts: 2,
+      randomizeQuestions: true,
+      showCorrectAnswers: true,
+      isPublished: true,
+    },
+    {
+      id: 4,
+      title: 'Full-Stack Backend, REST API va SQL Ma‘lumotlar Bazasi',
+      subject: 'Backend & Database Engineering',
+      gradeLevel: '10-sinf',
+      assessmentType: 'EXAM',
+      totalPoints: 100,
+      passingScore: 60,
+      durationMinutes: 35,
+      maxAttempts: 2,
+      randomizeQuestions: true,
+      showCorrectAnswers: true,
+      isPublished: true,
+    },
   ];
+}
+
+function getDefaultQuestionsForAssessment(title?: string): AssessmentQuestionDto[] {
+  if (title?.toLowerCase().includes('python')) {
+    return [
+      {
+        id: 101,
+        questionText: 'Python dasturlash tilida list va tuple tuzilmalarining asosiy tub farqi nimada?',
+        questionType: 'SINGLE_CHOICE',
+        points: 10,
+        optionsJson: JSON.stringify(['List faqat raqam saqlaydi', 'List o‘zgaruvchan (mutable), tuple esa o‘zgarmas (immutable)', 'Tuple xotiradan ko‘proq joy oladi', 'Farqi yo‘q']),
+        correctAnswersJson: '1',
+        explanation: 'List elementlarini o‘zgartirish mumkin, tuple yaratilgach o‘zgarmaydi.',
+      },
+      {
+        id: 102,
+        questionText: 'Saralangan massivdan elementni qidirishda Ikkilik qidiruv (Binary Search) algoritmining vaqt murakkabligi qanday?',
+        questionType: 'SINGLE_CHOICE',
+        points: 10,
+        optionsJson: JSON.stringify(['O(n)', 'O(log n)', 'O(n^2)', 'O(1)']),
+        correctAnswersJson: '1',
+        explanation: 'Binary Search har qadamda qidiruv sohasini 2 marta qisqartiradi: O(log n).',
+      },
+      {
+        id: 103,
+        questionText: '[x**2 for x in range(5) if x % 2 == 0] natijasi nima bo‘ladi?',
+        questionType: 'SINGLE_CHOICE',
+        points: 10,
+        optionsJson: JSON.stringify(['[0, 4, 16]', '[1, 9]', '[0, 1, 4, 9, 16]', '[4, 16]']),
+        correctAnswersJson: '0',
+        explanation: 'range(5) dagi juft sonlar: 0, 2, 4. Ularning kvadrati: [0, 4, 16].',
+      },
+    ];
+  }
+
+  if (title?.toLowerCase().includes('backend') || title?.toLowerCase().includes('sql')) {
+    return [
+      {
+        id: 201,
+        questionText: 'Quyidagi HTTP metodlaridan qaysi biri idempotent EMAS?',
+        questionType: 'SINGLE_CHOICE',
+        points: 10,
+        optionsJson: JSON.stringify(['GET', 'PUT', 'DELETE', 'POST']),
+        correctAnswersJson: '3',
+        explanation: 'POST har safar serverda yangi resurs yaratadi, shuning uchun idempotent emas.',
+      },
+      {
+        id: 202,
+        questionText: 'Yangi resurs serverda muvaffaqiyatli yaratilganda qaysi HTTP status kodi qaytariladi?',
+        questionType: 'SINGLE_CHOICE',
+        points: 10,
+        optionsJson: JSON.stringify(['200 OK', '201 Created', '204 No Content', '404 Not Found']),
+        correctAnswersJson: '1',
+        explanation: '201 Created resurs yaratilganini bildiruvchi standart status kodidir.',
+      },
+      {
+        id: 203,
+        questionText: 'SQL da INNER JOIN va LEFT JOIN o‘rtasidagi asosiy farq nima?',
+        questionType: 'SINGLE_CHOICE',
+        points: 10,
+        optionsJson: JSON.stringify(['INNER JOIN faqat ikkala jadvalda mos qatorlarni oladi, LEFT JOIN esa chap jadvalning barcha qatorlarini saqlaydi', 'INNER JOIN tezroq, boshqa farqi yo‘q', 'Farqi yo‘q', 'LEFT JOIN faqat NULL qiymatlarni oladi']),
+        correctAnswersJson: '0',
+        explanation: 'LEFT JOIN chap jadvaldagi barcha qatorlarni o‘ng jadvalda moslik bo‘lmasa ham saqlab qoladi.',
+      },
+    ];
+  }
+
+  return getDefaultSampleQuestions();
 }
 
 function getDefaultSampleQuestions(): AssessmentQuestionDto[] {
   return [
     {
       id: 1,
-      questionText: 'HTML da semantik sarlavha uchun eng yuqori darajadagi teg qaysi?',
+      questionText: 'Qaysi kalit so‘z bilan e‘lon qilingan o‘zgaruvchiga qayta qiymat biriktirishga yo‘l qo‘yilmaydi va block-scope ga ega?',
       questionType: 'SINGLE_CHOICE',
       points: 10,
-      optionsJson: JSON.stringify(['<h6>', '<heading>', '<h1>', '<title>']),
+      optionsJson: JSON.stringify(['var', 'let', 'const', 'static']),
       correctAnswersJson: '2',
-      explanation: '<h1> tegi sahifaning bosh sarlavhasi bo‘lib, eng yuqori semantik darajaga ega.',
+      explanation: 'const o‘zgarmas identifikator yaratadi va faqat e‘lon qilingan blokda amal qiladi.',
     },
     {
       id: 2,
-      questionText: 'CSS Flexbox da elementlarni asosiy o‘q (main-axis) bo‘yicha tekislash uchun qaysi xususiyat ishlatiladi?',
+      questionText: 'const add = (a, b) => a + b; ifodasida natija qaytarish (return) qanday ishlaydi?',
       questionType: 'SINGLE_CHOICE',
       points: 10,
-      optionsJson: JSON.stringify(['align-items', 'justify-content', 'align-content', 'flex-wrap']),
+      optionsJson: JSON.stringify(['return so‘zi majburiy', 'Figurali qavssiz yagona ifoda avtomatik qaytariladi (implicit return)', 'console.log kerak', 'Qiymat qaytarmaydi']),
       correctAnswersJson: '1',
-      explanation: 'justify-content xususiyati asosiy o‘q bo‘yicha elementlarni tartibga soladi.',
+      explanation: 'Arrow funksiyada {} bo‘lmaganda yagona ifoda natijasi avtomatik return qilinadi.',
+    },
+    {
+      id: 3,
+      questionText: 'HTML dagi <button class="submit-btn">Yuborish</button> elementini tanlab olish uchun eng to‘g‘ri JS metodi qaysi?',
+      questionType: 'SINGLE_CHOICE',
+      points: 10,
+      optionsJson: JSON.stringify(['document.getElementById("submit-btn")', 'document.querySelector(".submit-btn")', 'document.find(".submit-btn")', 'document.getElementsByTag("submit-btn")']),
+      correctAnswersJson: '1',
+      explanation: 'document.querySelector(".submit-btn") CSS sinf selektori orqali elementni tanlaydi.',
+    },
+    {
+      id: 4,
+      questionText: 'Tugma bosilganda sahifaning yangilanib ketishini to‘xtatish uchun hodisaning qaysi metodi chaqiriladi?',
+      questionType: 'SINGLE_CHOICE',
+      points: 10,
+      optionsJson: JSON.stringify(['event.stopPropagation()', 'event.preventDefault()', 'event.cancel()', 'event.freeze()']),
+      correctAnswersJson: '1',
+      explanation: 'event.preventDefault() standart brauzer qayta yuklash harakatini to‘xtatadi.',
+    },
+    {
+      id: 5,
+      questionText: '[1, 2, 3].map(x => x * 2) ifodasining natijasi nima bo‘ladi?',
+      questionType: 'SINGLE_CHOICE',
+      points: 10,
+      optionsJson: JSON.stringify(['[2, 4, 6]', '[1, 2, 3]', '6', 'undefined']),
+      correctAnswersJson: '0',
+      explanation: 'map har bir elementni ikkiga ko‘paytiradi: [2, 4, 6].',
+    },
+    {
+      id: 6,
+      questionText: '[10, 15, 20, 25].filter(n => n > 18) amali natijasida qaysi elementlar qoladi?',
+      questionType: 'SINGLE_CHOICE',
+      points: 10,
+      optionsJson: JSON.stringify(['[10, 15]', '[20, 25]', '[15, 20, 25]', '25']),
+      correctAnswersJson: '1',
+      explanation: 'filter 18 dan katta elementlarni saqlaydi: [20, 25].',
+    },
+    {
+      id: 7,
+      questionText: 'JavaScript da asinxron natijani kutish uchun await kalit so‘zi qayerda ishlatilishi shart?',
+      questionType: 'SINGLE_CHOICE',
+      points: 10,
+      optionsJson: JSON.stringify(['Ixtiyoriy funksiya ichida', 'Faqat async kalit so‘zi bilan e‘lon qilingan funksiya ichida', 'Loop ichida', 'Try blokida']),
+      correctAnswersJson: '1',
+      explanation: 'await faqat async funksiyalar ichida ishlaydi.',
+    },
+    {
+      id: 8,
+      questionText: 'Serverdan kelgan JSON matnini JavaScript obyektiga aylantirish uchun qaysi metod ishlatiladi?',
+      questionType: 'SINGLE_CHOICE',
+      points: 10,
+      optionsJson: JSON.stringify(['JSON.stringify()', 'JSON.parse()', 'JSON.toObject()', 'JSON.convert()']),
+      correctAnswersJson: '1',
+      explanation: 'JSON.parse() matnni obyektga aylantiradi.',
+    },
+    {
+      id: 9,
+      questionText: '5 === "5" ifodasi qanday natija beradi va nima sababdan?',
+      questionType: 'SINGLE_CHOICE',
+      points: 10,
+      optionsJson: JSON.stringify(['true, qiymatlar bir xil', 'false, chunki qattiq tenglik (===) turlarni (number va string) taqqoslaydi', 'undefined', 'Xatolik']),
+      correctAnswersJson: '1',
+      explanation: '=== turlarni o‘zgartirmaydi, 5 (number) va "5" (string) har xil tur bo‘lgani uchun false.',
+    },
+    {
+      id: 10,
+      questionText: 'Brauzerning LocalStorage xotirasiga ma‘lumot yozish uchun qaysi buyruq to‘g‘ri?',
+      questionType: 'SINGLE_CHOICE',
+      points: 10,
+      optionsJson: JSON.stringify(['localStorage.save("user", "Ali")', 'localStorage.setItem("user", "Ali")', 'localStorage.add("user", "Ali")', 'localStorage.write("user", "Ali")']),
+      correctAnswersJson: '1',
+      explanation: 'localStorage.setItem(key, value) metodi ma‘lumotni saqlaydi.',
     },
   ];
 }

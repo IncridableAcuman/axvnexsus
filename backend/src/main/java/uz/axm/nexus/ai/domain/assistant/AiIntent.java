@@ -3,6 +3,7 @@ package uz.axm.nexus.ai.domain.assistant;
 public enum AiIntent {
     // Mentor Use Cases
     LESSON_PLAN,
+    PRESENTATION_SLIDES,
     CONCEPT_EXPLANATION,
     PRACTICAL_EXERCISES,
     QUIZ_GENERATION,

@@ -440,6 +440,9 @@ export const lessonPlanApi = {
   transitionStatus: (id: number, status: string, reason?: string) => {
     return api.patch<import('./types').LessonPlanDto>(`/lesson-plans/${id}/status`, { status, reason });
   },
+  updatePresentation: (id: number, presentationSlides: string) => {
+    return api.patch<import('./types').LessonPlanDto>(`/lesson-plans/${id}/presentation`, { presentationSlides });
+  },
   clone: (id: number, payload?: { groupId?: number; mentorId?: number; title?: string }) => {
     return api.post<import('./types').LessonPlanDto>(`/lesson-plans/${id}/clone`, payload);
   },
@@ -602,6 +605,17 @@ export const gradingApi = {
   },
   getStudentProfile: (studentId: number) => {
     return api.get<import('./types').StudentGamificationProfileDto>(`/grading/profile/${studentId}`);
+  },
+  checkInStreak: (studentId: number, activityType: string = 'DAILY_CHECKIN') => {
+    return api.post<import('./types').StreakCheckInResultDto>('/grading/streak/check-in', null, {
+      params: { studentId, activityType },
+    });
+  },
+  getStudentStreak: (studentId: number) => {
+    return api.get<import('./types').StudentStreakDto>(`/grading/streak/student/${studentId}`);
+  },
+  getGamificationMetrics: () => {
+    return api.get<import('./types').GamificationMetricsDto>('/grading/metrics');
   },
 };
 

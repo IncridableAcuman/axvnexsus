@@ -180,18 +180,21 @@ public class AiAssistantService {
         if (role == AiRole.MENTOR_ASSISTANT) {
             return switch (lang) {
                 case "ru" -> List.of(
+                        Map.of("label", "Слайды лекции (Rich Text)", "prompt", "Создай интерактивную презентацию из 6 слайдов по теме 'Архитектура компьютеров Фон Неймана' для 8 класса."),
                         Map.of("label", "План урока по архитектуре", "prompt", "Составь 80-минутный план урока по теме 'Архитектура компьютеров Фон Неймана' для 8 класса."),
                         Map.of("label", "Тестовые вопросы", "prompt", "Создай 4 тестовых вопроса с вариантами ответов по теме 'HTML5 и формы'."),
                         Map.of("label", "Практические упражнения", "prompt", "Подготовь трехуровневые практические упражнения по CSS Flexbox."),
                         Map.of("label", "Домашнее задание", "prompt", "Предложи творческое домашнее задание по созданию макета сайта.")
                 );
                 case "en" -> List.of(
+                        Map.of("label", "Lecture Presentation Slides", "prompt", "Generate a rich-text 6-slide lecture presentation on Von Neumann Architecture for 8th grade."),
                         Map.of("label", "Computer Architecture Lesson Plan", "prompt", "Generate an 80-minute lesson plan on Von Neumann Architecture for 8th grade."),
                         Map.of("label", "Quiz Draft", "prompt", "Draft 4 multiple-choice quiz questions on CPU and memory hierarchy."),
                         Map.of("label", "Practical Lab Exercises", "prompt", "Create tiered practical exercises for CSS Flexbox and Grid."),
                         Map.of("label", "Differentiated Tasks", "prompt", "Suggest differentiated homework for foundational and advanced students.")
                 );
                 default -> List.of(
+                        Map.of("label", "Maruza taqdimot slaydlari (Rich Text)", "prompt", "8-sinf uchun 'Fon Neyman kompyuter arxitekturasi va CPU tuzilishi' mavzusida 6 slayddan iborat interaktiv maruza taqdimotini yaratib ber."),
                         Map.of("label", "Dars rejasi (8-sinf Arxitektura)", "prompt", "8-sinf o'quvchilari uchun 'Fon Neyman kompyuter arxitekturasi va CPU tuzilishi' mavzusida 80 daqiqalik to'liq dars rejasi tayyorlab ber."),
                         Map.of("label", "Oraliq test savollari", "prompt", "8-sinf 'HTML5 semantik teglari va CSS Flexbox' bo'yicha 4 ta variantli oraliq test savollari tuzib ber."),
                         Map.of("label", "3 darajali amaliy mashqlar", "prompt", "CSS Flexbox bo'yicha o'quvchilar darajasiga mos (boshlang'ich, o'rta, yuqori) 3 ta amaliy laboratoriya topshirig'ini yarat."),

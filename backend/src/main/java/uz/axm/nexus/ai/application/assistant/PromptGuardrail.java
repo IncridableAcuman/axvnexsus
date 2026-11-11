@@ -91,6 +91,15 @@ public class PromptGuardrail {
             sb.append("- ### 💻 Amaliyot (25 daqiqa)\n");
             sb.append("- ### 📝 Mustaqil Mashqlar\n");
             sb.append("- ### 🏠 Uyga Vazifa\n");
+        } else if (request.getIntent() == uz.axm.nexus.ai.domain.assistant.AiIntent.PRESENTATION_SLIDES) {
+            sb.append("\nMaruza uchun interaktiv taqdimot slaydlari (Rich Text Presentation) tuzishda quyidagi standartlarga qat'iy rioya qiling:\n");
+            sb.append("1. Har bir alohida slaydni '---' (uchta chiziq) bilan ajrating.\n");
+            sb.append("2. Har bir slayd: '# [Raqam]. [Slayd Sarlavhasi]' bilan boshlansin.\n");
+            sb.append("3. Aniq tezislar, qalin shrift bilan ajratilgan tushunchalar va xulosalardan foydalaning.\n");
+            sb.append("4. Agar mavzu dasturlash yoki texnik bo'lsa, ixcham va tushunarli formatlangan kod bloklarini (```til ... ```) kiriting.\n");
+            sb.append("5. Muhim eslatmalar uchun '> [!NOTE]' yoki '> [!TIP]' kabi vizual bloklardan foydalaning.\n");
+            sb.append("6. Har bir slaydning oxirida o'qituvchi uchun spiker eslatmasini kiriting: '> 🎙️ **Spiker izohi:** [Mentor darsda qanday tushuntirishi kerakligi]'.\n");
+            sb.append("7. Jami 5 tadan 8 tagacha to'liq, interaktiv va pedagogik jihatdan boyitilgan slaydlar tayyorlang.\n");
         }
 
         sb.append("\nQuyidagi foydalanuvchi ma'lumotlarini qat'iy tekshiring va professional ta'limiy javob bering:\n");

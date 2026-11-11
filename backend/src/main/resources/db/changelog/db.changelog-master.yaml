@@ -21,3 +21,7 @@ databaseChangeLog:
       file: db/changelog/changes/010-modules-14-to-16-schema.sql
   - include:
       file: db/changelog/changes/011-lesson-quality-and-outcomes-schema.sql
+  - include:
+      file: db/changelog/changes/012-gamification-streak-and-real-tests.sql
+  - include:
+      file: db/changelog/changes/013-lesson-presentation-slides.sql

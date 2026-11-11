@@ -40,6 +40,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { useTranslation } from '@/shared/i18n';
+import { AiPresentationModal } from './lessons/AiPresentationModal';
 
 export interface CurriculumTopic {
   title: string;
@@ -787,11 +788,21 @@ export const CURRICULUM_DATA: CurriculumItem[] = [
   },
 ];
 
-export const CurriculumView: React.FC = () => {
+export interface CurriculumViewProps {
+  onNavigateTab?: (tab: string) => void;
+}
+
+export const CurriculumView: React.FC<CurriculumViewProps> = ({ onNavigateTab }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'all' | '8' | '9-10' | '11'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItem, setSelectedItem] = useState<CurriculumItem | null>(null);
+
+  // AI Rich-Text Presentation Modal State
+  const [isAiPresentationOpen, setIsAiPresentationOpen] = useState(false);
+  const [presentationTopic, setPresentationTopic] = useState('');
+  const [presentationGrade, setPresentationGrade] = useState('8-sinf');
+  const [presentationSubject, setPresentationSubject] = useState('Web Full-Stack Development');
 
   // Filter items based on active tab and search query
   const filteredItems = useMemo(() => {
@@ -1296,6 +1307,67 @@ export const CurriculumView: React.FC = () => {
                   </div>
                 </div>
               )}
+              {/* Al-Xorazmiy Vorislari Interactive Action Center */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-primary/10 via-indigo-500/10 to-amber-500/10 border border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <h5 className="font-extrabold text-xs sm:text-sm text-foreground flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      Al-Xorazmiy Vorislari: Darslar, Testlar & AI Slaydlar
+                    </h5>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Ushbu o‘quv moduli bo‘yicha AI yordamida maruza taqdimotini generatsiya qiling, dars rejalarini boshqaring yoki nazorat testlarini topshiring.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => {
+                      setPresentationTopic(selectedItem.title);
+                      setPresentationGrade(selectedItem.gradeLabel);
+                      setPresentationSubject(selectedItem.category);
+                      setIsAiPresentationOpen(true);
+                    }}
+                    className="text-xs font-bold rounded-xl border-0 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 text-white shadow-md shadow-indigo-600/20 hover:opacity-90"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5 text-amber-300" />
+                    AI Maruza Taqdimoti
+                  </Button>
+
+                  {onNavigateTab && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedItem(null);
+                          onNavigateTab('lessons');
+                        }}
+                        className="text-xs font-semibold rounded-xl bg-card border-border/30 hover:bg-muted"
+                      >
+                        <BookOpen className="w-3.5 h-3.5 mr-1 text-primary" />
+                        Darslar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedItem(null);
+                          onNavigateTab('assessments');
+                        }}
+                        className="text-xs font-semibold rounded-xl bg-card border-border/30 hover:bg-muted"
+                      >
+                        <Award className="w-3.5 h-3.5 mr-1 text-emerald-500" />
+                        Oraliq Testlar
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="my-4 border-t border-border/15" />
@@ -1314,6 +1386,17 @@ export const CurriculumView: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* AI Presentation Modal for Curriculum Tracks */}
+      {isAiPresentationOpen && (
+        <AiPresentationModal
+          isOpen={isAiPresentationOpen}
+          onClose={() => setIsAiPresentationOpen(false)}
+          initialTopic={presentationTopic}
+          initialGrade={presentationGrade}
+          initialSubject={presentationSubject}
+        />
       )}
     </div>
   );

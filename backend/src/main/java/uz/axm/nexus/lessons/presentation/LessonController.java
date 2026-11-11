@@ -81,6 +81,17 @@ public class LessonController {
         return ResponseEntity.ok(lessonService.transitionStatus(id, targetStatus, reason));
     }
 
+    @PatchMapping("/{id}/presentation")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MENTOR', 'ENGLISH_MENTOR')")
+    @Operation(summary = "Dars ma'ruza taqdimoti (slaydlar) matnini yangilash")
+    public ResponseEntity<Lesson> updatePresentation(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> payload
+    ) {
+        String slides = payload.get("presentationSlides");
+        return ResponseEntity.ok(lessonService.updatePresentationSlides(id, slides));
+    }
+
     @PostMapping("/{id}/clone")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MENTOR', 'ENGLISH_MENTOR')")
     @Operation(summary = "Dars rejasini boshqa guruh yoki yangi mavzuga nusxalash")

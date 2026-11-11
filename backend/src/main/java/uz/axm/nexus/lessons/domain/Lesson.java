@@ -83,6 +83,9 @@ public class Lesson {
     @Column(name = "mentor_notes", columnDefinition = "TEXT")
     private String mentorNotes;
 
+    @Column(name = "presentation_slides", columnDefinition = "TEXT")
+    private String presentationSlides;
+
     @Column(name = "is_template", nullable = false)
     @Builder.Default
     private Boolean isTemplate = false;

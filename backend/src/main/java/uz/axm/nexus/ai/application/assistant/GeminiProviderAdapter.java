@@ -84,6 +84,14 @@ public class GeminiProviderAdapter implements AiProviderAdapter {
 
                 int totalTokens = root.path("usageMetadata").path("totalTokenCount").asInt(450);
 
+                List<String> presentationSlides = Collections.emptyList();
+                if (request.getIntent() == AiIntent.PRESENTATION_SLIDES && content != null && content.contains("---")) {
+                    presentationSlides = Arrays.stream(content.split("(?m)^---+$"))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .toList();
+                }
+
                 return AiCompletionResponse.builder()
                         .success(true)
                         .content(content)
@@ -94,6 +102,7 @@ public class GeminiProviderAdapter implements AiProviderAdapter {
                         .tokensUsed(totalTokens)
                         .generatedQuizQuestions(Collections.emptyList())
                         .generatedLessonPlan(null)
+                        .generatedPresentationSlides(presentationSlides)
                         .build();
 
             } catch (Exception e) {

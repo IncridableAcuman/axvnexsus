@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Trophy,
   Flame,
@@ -9,6 +9,11 @@ import {
   Users,
   Sparkles,
   Calendar,
+  Shield,
+  CheckCircle2,
+  Target,
+  BarChart2,
+  Activity,
 } from 'lucide-react';
 import {
   Card,
@@ -39,12 +44,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/shared/ui/toast/ToastContext';
 import { useOptionalAuth } from '@/features/auth/AuthContext';
 import { gradingApi } from '@/api';
 import type {
   LeaderboardEntryDto,
   GroupLeaderboardEntryDto,
+  StudentStreakDto,
+  GamificationMetricsDto,
   Student,
 } from '@/types';
 
@@ -59,13 +67,25 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
   const isMentor = auth ? auth.isMentor : true;
   const canAwardPoints = isAdmin || isMentor;
 
+  // Tab & Filters
   const [period, setPeriod] = useState<'ALL_TIME' | 'MONTHLY' | 'WEEKLY'>('ALL_TIME');
+  const [gradeFilter, setGradeFilter] = useState<string>('ALL');
   const [isGroupView, setIsGroupView] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntryDto[]>([]);
   const [groupLeaderboard, setGroupLeaderboard] = useState<GroupLeaderboardEntryDto[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Award Points Modal
+  // Active student for streak display and check-in
+  const activeStudentId = students[0]?.id || 1;
+  const [studentStreak, setStudentStreak] = useState<StudentStreakDto | null>(null);
+  const [checkingIn, setCheckingIn] = useState(false);
+
+  // Metrics & Indicators Modal State
+  const [isMetricsModalOpen, setIsMetricsModalOpen] = useState(false);
+  const [metricsData, setMetricsData] = useState<GamificationMetricsDto | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+
+  // Award Points Modal State
   const [isAwardModalOpen, setIsAwardModalOpen] = useState(false);
   const [awardStudentId, setAwardStudentId] = useState<number>(students[0]?.id || 1);
   const [awardAmount, setAwardAmount] = useState<number>(50);
@@ -76,25 +96,37 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
   const loadGamificationData = async () => {
     try {
       setLoading(true);
-      const [lbRes, grpRes] = await Promise.all([
+      const streakPromise = typeof gradingApi.getStudentStreak === 'function'
+        ? gradingApi.getStudentStreak(activeStudentId)
+        : Promise.resolve({ data: getDefaultSampleStreak(activeStudentId) });
+
+      const [lbRes, grpRes, streakRes] = await Promise.allSettled([
         gradingApi.getLeaderboard(period),
         gradingApi.getGroupLeaderboard(),
+        streakPromise,
       ]);
 
-      if (lbRes.data && lbRes.data.length > 0) {
-        setLeaderboard(lbRes.data);
+      if (lbRes.status === 'fulfilled' && lbRes.value && lbRes.value.data && lbRes.value.data.length > 0) {
+        setLeaderboard(lbRes.value.data);
       } else {
         setLeaderboard(getDefaultSampleLeaderboard());
       }
 
-      if (grpRes.data && grpRes.data.length > 0) {
-        setGroupLeaderboard(grpRes.data);
+      if (grpRes.status === 'fulfilled' && grpRes.value && grpRes.value.data && grpRes.value.data.length > 0) {
+        setGroupLeaderboard(grpRes.value.data);
       } else {
         setGroupLeaderboard(getDefaultSampleGroupLeaderboard());
+      }
+
+      if (streakRes.status === 'fulfilled' && streakRes.value && streakRes.value.data) {
+        setStudentStreak(streakRes.value.data);
+      } else {
+        setStudentStreak(getDefaultSampleStreak(activeStudentId));
       }
     } catch {
       setLeaderboard(getDefaultSampleLeaderboard());
       setGroupLeaderboard(getDefaultSampleGroupLeaderboard());
+      setStudentStreak(getDefaultSampleStreak(activeStudentId));
     } finally {
       setLoading(false);
     }
@@ -103,6 +135,58 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
   useEffect(() => {
     loadGamificationData();
   }, [period]);
+
+  const loadMetricsData = async () => {
+    try {
+      setLoadingMetrics(true);
+      const res = await gradingApi.getGamificationMetrics();
+      if (res.data) {
+        setMetricsData(res.data);
+      } else {
+        setMetricsData(getDefaultMetricsData());
+      }
+    } catch {
+      setMetricsData(getDefaultMetricsData());
+    } finally {
+      setLoadingMetrics(false);
+    }
+  };
+
+  const handleOpenMetrics = () => {
+    setIsMetricsModalOpen(true);
+    if (!metricsData) {
+      loadMetricsData();
+    }
+  };
+
+  // Daily Streak Check-in Handler
+  const handleDailyCheckIn = async () => {
+    try {
+      setCheckingIn(true);
+      const res = await gradingApi.checkInStreak(activeStudentId, 'DAILY_CHECKIN');
+      const data = res.data;
+
+      if (data.alreadyRecorded) {
+        toast.info('Bugungi streak qayd etilgan', data.message || 'Streak davom etmoqda!');
+      } else {
+        toast.success(
+          '🔥 Kunlik Streak Tasdiqlandi!',
+          `${data.currentStreak}-kunlik streak erishildi! +${data.bonusXpEarned} XP hisobingizga qo‘shildi.`
+        );
+      }
+
+      // Refresh streak and leaderboard
+      const streakRes = await gradingApi.getStudentStreak(activeStudentId);
+      if (streakRes.data) {
+        setStudentStreak(streakRes.data);
+      }
+      loadGamificationData();
+    } catch (err: any) {
+      toast.error('Xatolik', err.response?.data?.message || 'Streakni tasdiqlashda xatolik yuz berdi.');
+    } finally {
+      setCheckingIn(false);
+    }
+  };
 
   const handleAwardSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,13 +228,23 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
     return clean.slice(0, 2).toUpperCase();
   };
 
+  const filteredLeaderboard = useMemo(() => {
+    if (gradeFilter === 'ALL') return leaderboard;
+    return leaderboard.filter((item) => item.gradeLevel?.toLowerCase().includes(gradeFilter.toLowerCase()));
+  }, [leaderboard, gradeFilter]);
+
   const totalPointsAwarded = leaderboard.reduce((acc, curr) => acc + (curr.totalPoints || 0), 0);
   const topStudent = leaderboard[0];
+
+  // Milestone calculation for streak progress
+  const currentStreakCount = studentStreak?.currentStreak ?? 5;
+  const nextMilestone = studentStreak?.nextMilestoneDays ?? 7;
+  const streakPercent = Math.min(100, Math.round((currentStreakCount / Math.max(1, nextMilestone)) * 100));
 
   return (
     <div className="space-y-6">
       {/* ========================================================
-          1. HERO HEADER BANNER (Borderless, Glassmorphic, Rich Gold Accent)
+          1. HERO HEADER BANNER (Glassmorphic, Warm Gold & Fire Glow)
       ======================================================== */}
       <Card className="border-0 shadow-xl bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-card dark:from-amber-500/15 dark:via-background dark:to-card relative overflow-hidden rounded-3xl p-6 sm:p-8">
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-amber-500/10 dark:bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
@@ -158,22 +252,38 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-3 max-w-2xl">
-            <Badge className="border-0 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold px-3 py-1 rounded-full text-xs shadow-none inline-flex items-center gap-1.5 hover:bg-amber-500/20">
-              <Trophy className="w-3.5 h-3.5" />
-              <span>Modul 11 — Ballar, Reyting & Gamifikatsiya</span>
-            </Badge>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge className="border-0 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold px-3 py-1 rounded-full text-xs shadow-none inline-flex items-center gap-1.5 hover:bg-amber-500/20">
+                <Trophy className="w-3.5 h-3.5" />
+                <span>Modul 11 — Ballar, Reyting & Gamifikatsiya</span>
+              </Badge>
+              <Badge className="border-0 bg-orange-500/15 text-orange-700 dark:text-orange-300 font-bold px-3 py-1 rounded-full text-xs shadow-none inline-flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5 text-orange-500" />
+                <span>Kunlik Streak & XP Tizimi</span>
+              </Badge>
+            </div>
 
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-foreground tracking-tight">
-              Shaxsiy Natijalar & Rag‘batlantirish Tizimi
+              Shaxsiy Natijalar & Rag‘batlantirish Tizimi (Kunlik Streak & Reytinglar)
             </h1>
 
             <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-              O‘quvchilar reytingini oddiy raqam emas, balki shaffof va audit qilinuvchi tranzaksiyalar orqali yuritish. Baholangan testlar, amaliy topshiriqlar va namunali davomat uchun avtomatik XP ballari.
+              O‘quvchilar intizomini mustahkamlash: har kuni uzluksiz ta’lim olish orqali kunlik streakga erishish, real testlar va amaliy topshiriqlar uchun shaffof XP yig‘ish hamda umumiy reytingda peshqadam bo‘lish tizimi.
             </p>
           </div>
 
-          {canAwardPoints && (
-            <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-3 shrink-0 flex-wrap">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={handleOpenMetrics}
+              className="border border-border/40 hover:bg-muted font-bold rounded-2xl px-4 py-2.5 h-auto text-foreground shadow-sm transition-all duration-200 cursor-pointer flex items-center gap-2"
+            >
+              <BarChart2 className="w-4 h-4 text-amber-500" />
+              <span>Ko‘rsatkichlar & Mezonlar</span>
+            </Button>
+
+            {canAwardPoints && (
               <Button
                 variant="default"
                 size="md"
@@ -183,13 +293,165 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
                 <Plus className="w-4 h-4 mr-1.5" />
                 <span>Ball / XP Taqdim Etish</span>
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </Card>
 
       {/* ========================================================
-          2. SUMMARY KPI OVERVIEW CARDS (Borderless, Modern Soft Depth)
+          2. INTERACTIVE DAILY STREAK & LEVEL PROGRESS BANNER
+      ======================================================== */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Streak Main Card (2 Cols) */}
+        <Card className="lg:col-span-2 border-0 shadow-xl bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-card dark:from-orange-500/15 dark:via-amber-500/5 dark:to-card rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-400 flex items-center justify-center text-slate-950 shadow-lg shadow-orange-500/30 shrink-0 animate-pulse">
+                <Flame className="w-8 h-8 fill-current" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-black text-foreground">
+                    {currentStreakCount} Kunlik Olovli Streak!
+                  </h2>
+                  <Badge className="border-0 bg-orange-500/20 text-orange-600 dark:text-orange-400 font-black text-xs px-2.5 py-0.5 rounded-full">
+                    🔥 Faol
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Shaxsiy rekord: <strong className="text-foreground">{studentStreak?.longestStreak ?? 14} kun</strong> • Jami faol kunlar: <strong className="text-foreground">{studentStreak?.totalActiveDays ?? 24} kun</strong>
+                </p>
+              </div>
+            </div>
+
+            {/* Daily Check-in Button */}
+            <div>
+              {studentStreak?.checkedInToday ? (
+                <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Bugungi Streak Qayd Etilgan (+15 XP)</span>
+                </div>
+              ) : (
+                <Button
+                  onClick={handleDailyCheckIn}
+                  disabled={checkingIn}
+                  className="border-0 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-slate-950 font-black rounded-2xl px-5 py-2.5 text-xs shadow-lg shadow-orange-500/25 transition-all hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
+                >
+                  <Flame className="w-4 h-4 mr-1.5 fill-current" />
+                  <span>{checkingIn ? 'Tasdiqlanmoqda...' : 'Kunlik Streakni Olish (+15 XP)'}</span>
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Weekly 7-Day Matrix */}
+          <div className="pt-2 pb-4">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block mb-2.5">
+              Haftalik Intizom Matritsasi
+            </span>
+            <div className="grid grid-cols-7 gap-2 text-center">
+              {[
+                { day: 'Dush', active: true, today: false },
+                { day: 'Sesh', active: true, today: false },
+                { day: 'Chor', active: true, today: false },
+                { day: 'Pay', active: true, today: false },
+                { day: 'Jum', active: true, today: false },
+                { day: 'Shan', active: currentStreakCount >= 6, today: false },
+                { day: 'Yak', active: currentStreakCount >= 7, today: true },
+              ].map((item, dIdx) => (
+                <div
+                  key={dIdx}
+                  className={`p-2.5 rounded-2xl transition-all ${
+                    item.active
+                      ? 'bg-orange-500/20 text-orange-700 dark:text-orange-300 font-extrabold shadow-sm'
+                      : 'bg-muted/40 text-muted-foreground font-medium'
+                  } ${item.today ? 'ring-2 ring-orange-500/50' : ''}`}
+                >
+                  <span className="text-[10px] block uppercase">{item.day}</span>
+                  <div className="mt-1 flex justify-center">
+                    {item.active ? (
+                      <Flame className="w-4 h-4 text-orange-500 fill-current" />
+                    ) : (
+                      <div className="w-2 h-2 rounded-full bg-muted-foreground/30 mt-1" />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Next Milestone & Shield Info */}
+          <div className="pt-3 border-t border-border/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="space-y-1.5 flex-1 max-w-md">
+              <div className="flex items-center justify-between text-[11px] font-bold">
+                <span className="text-muted-foreground">
+                  Keyingi marra: {nextMilestone} kunlik uzluksizlik
+                </span>
+                <span className="text-orange-500 font-black">
+                  +{studentStreak?.nextMilestoneReward ?? 100} XP Bonus
+                </span>
+              </div>
+              <Progress value={streakPercent} className="h-2 rounded-full bg-muted" />
+            </div>
+
+            <div className="flex items-center gap-2 text-muted-foreground shrink-0">
+              <Shield className="w-4 h-4 text-blue-500" />
+              <span>
+                <strong>{studentStreak?.streakFreezeCount ?? 1} ta Streak Freeze</strong> zaxirada
+              </span>
+            </div>
+          </div>
+        </Card>
+
+        {/* Level Progression Card (1 Col) */}
+        <Card className="border-0 shadow-xl bg-card rounded-3xl p-6 flex flex-col justify-between space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-500 flex items-center justify-center font-black text-xl shrink-0">
+                <Zap className="w-6 h-6 fill-current" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  O‘yin Darajasi (Tier)
+                </span>
+                <h3 className="text-lg font-black text-foreground">
+                  Level 3: Active Dev
+                </h3>
+              </div>
+            </div>
+
+            <Badge className="border-0 bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold text-xs px-2.5 py-1 rounded-xl shadow-none">
+              Top 5%
+            </Badge>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-muted/40 dark:bg-muted/20 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground font-semibold">Umumiy Tajriba (XP)</span>
+              <span className="font-black text-foreground">750 / 1000 XP</span>
+            </div>
+            <Progress value={75} className="h-2.5 rounded-full bg-muted" />
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+              <span>Level 3 (500 XP)</span>
+              <span className="font-bold text-amber-500">250 XP qoldi (Level 4 gacha)</span>
+            </div>
+          </div>
+
+          <div className="space-y-1.5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Star className="w-3.5 h-3.5 text-amber-500 fill-current" />
+              <span>Keyingi unvon: <strong>Senior Dasturchi (Master)</strong></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Target className="w-3.5 h-3.5 text-blue-500" />
+              <span>Real test topshirish: <strong>+100 XP gacha</strong></span>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* ========================================================
+          3. SUMMARY KPI OVERVIEW CARDS (Soft depth, Modern)
       ======================================================== */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="border-0 shadow-md bg-card/80 dark:bg-card/50 backdrop-blur-md rounded-2xl p-4 flex items-center gap-4">
@@ -245,7 +507,7 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
       </div>
 
       {/* ========================================================
-          3. TOP 3 PODIUM CARDS (Gold, Silver, Bronze - Borderless)
+          4. TOP 3 PODIUM CARDS (Gold, Silver, Bronze - Borderless)
       ======================================================== */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {leaderboard.slice(0, 3).map((student, idx) => {
@@ -289,9 +551,17 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
                     {cfg.badge}
                   </Badge>
 
-                  <div className={`flex items-center gap-1.5 text-xs font-bold ${cfg.accentText}`}>
-                    <Flame className="w-4 h-4 fill-current" />
-                    <span>#{student.rank} O‘rin</span>
+                  <div className="flex items-center gap-2">
+                    {student.currentStreak ? (
+                      <Badge className="border-0 bg-orange-500/20 text-orange-700 dark:text-orange-300 font-extrabold text-[11px] px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                        <Flame className="w-3 h-3 fill-current text-orange-500" />
+                        <span>{student.currentStreak} kun</span>
+                      </Badge>
+                    ) : null}
+
+                    <div className={`flex items-center gap-1 text-xs font-bold ${cfg.accentText}`}>
+                      <span>#{student.rank} O‘rin</span>
+                    </div>
                   </div>
                 </div>
 
@@ -337,7 +607,7 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
       </div>
 
       {/* ========================================================
-          4. MAIN LEADERBOARD AND BADGES (Borderless shadcn UI)
+          5. MAIN LEADERBOARD AND BADGES (Table with Streaks & Levels)
       ======================================================== */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Leaderboard Table (2 Cols) */}
@@ -354,7 +624,7 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
                 <CardDescription className="text-xs text-muted-foreground mt-0.5">
                   {isGroupView
                     ? 'Eng faol o‘quv guruhlarining o‘rtacha va umumiy ko‘rsatkichlari'
-                    : 'Barcha fanlar va topshiriqlardan to‘plangan shaxsiy reyting jadvali'}
+                    : 'Barcha fanlar, testlar va kunlik streaklar bo‘yicha shaxsiy reyting'}
                 </CardDescription>
               </div>
             </div>
@@ -381,18 +651,32 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
               </Tabs>
 
               {!isGroupView && (
-                <div className="relative">
+                <>
                   <select
-                    value={period}
-                    onChange={(e) => setPeriod(e.target.value as any)}
-                    className="border-0 bg-muted/60 dark:bg-muted/30 rounded-2xl px-3.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm cursor-pointer appearance-none pr-7"
+                    value={gradeFilter}
+                    onChange={(e) => setGradeFilter(e.target.value)}
+                    className="border-0 bg-muted/60 dark:bg-muted/30 rounded-2xl px-3 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm cursor-pointer"
                   >
-                    <option value="ALL_TIME">Barcha davrlar</option>
-                    <option value="MONTHLY">Shu oyda</option>
-                    <option value="WEEKLY">Haftalik</option>
+                    <option value="ALL">Barcha sinflar</option>
+                    <option value="8-sinf">8-sinf</option>
+                    <option value="9-sinf">9-sinf</option>
+                    <option value="10-sinf">10-sinf</option>
+                    <option value="11-sinf">11-sinf</option>
                   </select>
-                  <Calendar className="w-3.5 h-3.5 text-muted-foreground absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                </div>
+
+                  <div className="relative">
+                    <select
+                      value={period}
+                      onChange={(e) => setPeriod(e.target.value as any)}
+                      className="border-0 bg-muted/60 dark:bg-muted/30 rounded-2xl px-3.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm cursor-pointer appearance-none pr-7"
+                    >
+                      <option value="ALL_TIME">Barcha davrlar</option>
+                      <option value="MONTHLY">Shu oyda</option>
+                      <option value="WEEKLY">Haftalik</option>
+                    </select>
+                    <Calendar className="w-3.5 h-3.5 text-muted-foreground absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -420,7 +704,10 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
                       F.I.Sh (Maxfiy ID)
                     </TableHead>
                     <TableHead className="py-3 px-3 font-bold uppercase tracking-wider text-[11px] text-muted-foreground">
-                      Guruh
+                      Guruh & Sinf
+                    </TableHead>
+                    <TableHead className="py-3 px-3 font-bold uppercase tracking-wider text-[11px] text-muted-foreground">
+                      Kunlik Streak
                     </TableHead>
                     <TableHead className="py-3 px-4 font-bold uppercase tracking-wider text-[11px] text-muted-foreground text-right rounded-r-2xl">
                       To‘plangan XP
@@ -428,7 +715,7 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
                   </TableRow>
                 </TableHeader>
                 <TableBody className="[&_tr]:border-0 space-y-1">
-                  {leaderboard.map((item) => (
+                  {filteredLeaderboard.map((item) => (
                     <TableRow
                       key={item.studentId}
                       className="border-0 hover:bg-muted/40 dark:hover:bg-muted/20 transition-colors rounded-2xl"
@@ -462,15 +749,28 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
                               {getInitials(item.displayName)}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="font-bold text-foreground">
-                            {item.displayName}
-                          </span>
+                          <div>
+                            <span className="font-bold text-foreground block">
+                              {item.displayName}
+                            </span>
+                            {item.levelName && (
+                              <span className="text-[10px] text-muted-foreground font-semibold">
+                                {item.levelName}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="py-3 px-3 text-muted-foreground">
                         <Badge className="border-0 bg-muted/60 dark:bg-muted/30 text-muted-foreground font-medium text-[11px] shadow-none">
-                          {item.groupName}
+                          {item.groupName} • {item.gradeLevel}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="py-3 px-3">
+                        <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-black">
+                          <Flame className="w-3.5 h-3.5 fill-current" />
+                          <span>{item.currentStreak ?? 1} kun</span>
+                        </div>
                       </TableCell>
                       <TableCell className="py-3 px-4 text-right">
                         <span className="font-black text-amber-500 dark:text-amber-400 text-sm">
@@ -575,18 +875,34 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
                 bgGradient: 'bg-amber-500/10 dark:bg-amber-500/15',
               },
               {
-                title: 'Master Dasturchi',
-                desc: '3 ta amaliy loyihani topshirish',
-                xp: '+200 XP',
-                icon: Star,
+                title: 'Olovli Start',
+                desc: 'Ketma-ket 3 kunlik streak',
+                xp: '+30 XP',
+                icon: Flame,
+                iconColor: 'text-amber-500',
+                bgGradient: 'bg-amber-500/10 dark:bg-amber-500/15',
+              },
+              {
+                title: 'Haftalik Qahramon',
+                desc: 'Ketma-ket 7 kun uzluksiz ta’lim',
+                xp: '+100 XP',
+                icon: Flame,
+                iconColor: 'text-orange-500',
+                bgGradient: 'bg-orange-500/10 dark:bg-orange-500/15',
+              },
+              {
+                title: 'Bilimdon Tester',
+                desc: '3 ta real testni topshirish',
+                xp: '+150 XP',
+                icon: Target,
                 iconColor: 'text-blue-500',
                 bgGradient: 'bg-blue-500/10 dark:bg-blue-500/15',
               },
               {
-                title: '500 XP Chempioni',
-                desc: '500 ball chegarasini bosib o‘tish',
-                xp: '+50 XP',
-                icon: Zap,
+                title: 'Master Dasturchi',
+                desc: '3 ta amaliy loyihani topshirish',
+                xp: '+200 XP',
+                icon: Star,
                 iconColor: 'text-purple-500',
                 bgGradient: 'bg-purple-500/10 dark:bg-purple-500/15',
               },
@@ -631,7 +947,136 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
       </div>
 
       {/* ========================================================
-          5. AWARD POINTS MODAL (Borderless, Modern Dialog)
+          6. METRICS & GAMIFICATION STANDARDS MODAL
+      ======================================================== */}
+      <Dialog open={isMetricsModalOpen} onOpenChange={setIsMetricsModalOpen}>
+        <DialogContent className="border-0 shadow-2xl bg-card text-card-foreground rounded-3xl p-6 sm:p-8 max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader className="space-y-1 text-left pb-2">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                <BarChart2 className="w-6 h-6" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-black text-foreground">
+                  Gamifikatsiya & Baholash Standartlari
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  AXV Nexsus platformasida kunlik streak, XP ballari va darajalarni belgilash mezonlari
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {loadingMetrics ? (
+            <div className="space-y-3 py-6">
+              <Skeleton className="h-20 w-full rounded-2xl" />
+              <Skeleton className="h-20 w-full rounded-2xl" />
+              <Skeleton className="h-20 w-full rounded-2xl" />
+            </div>
+          ) : (
+            <div className="space-y-6 pt-3">
+              {/* Section 1: XP Earning Rules */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  <span>XP (Tajriba Ballari) To‘plash Mezonlari</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {(metricsData?.xpRules || getDefaultMetricsData().xpRules).map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-2xl bg-muted/40 dark:bg-muted/20 border-0 flex items-start justify-between gap-3">
+                      <div>
+                        <strong className="text-xs font-bold text-foreground block">{item.metric}</strong>
+                        <span className="text-[11px] text-muted-foreground">{item.description}</span>
+                      </div>
+                      <Badge className="border-0 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-black text-[11px] px-2 py-0.5 rounded-lg shrink-0">
+                        {item.value}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 2: Daily Streak Rules & Milestones */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                  <Flame className="w-4 h-4 text-orange-500 fill-current" />
+                  <span>Kunlik Streak & Intizom Qoidalari</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {(metricsData?.streakRules || getDefaultMetricsData().streakRules).map((item, idx) => (
+                    <div key={idx} className="p-3.5 rounded-2xl bg-orange-500/10 border-0 space-y-1">
+                      <span className="text-[10px] uppercase font-bold text-orange-600 dark:text-orange-400 block">
+                        {item.categoryOrCondition || 'Qoida'}
+                      </span>
+                      <h4 className="text-xs font-bold text-foreground">{item.metric}</h4>
+                      <p className="text-[11px] text-muted-foreground">{item.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 3: Player Levels (Tiers) */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                  <Trophy className="w-4 h-4 text-yellow-500" />
+                  <span>O‘yin Darajalari va Unvonlar (Player Tiers)</span>
+                </div>
+                <div className="space-y-2">
+                  {(metricsData?.playerLevels || getDefaultMetricsData().playerLevels).map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-2xl bg-muted/40 dark:bg-muted/20 border-0 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-500 flex items-center justify-center font-bold text-xs shrink-0">
+                          L{idx + 1}
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-foreground">{item.metric}</h4>
+                          <span className="text-[11px] text-muted-foreground">{item.description}</span>
+                        </div>
+                      </div>
+                      <Badge className="border-0 bg-background/80 text-foreground font-black text-xs px-2.5 py-1 rounded-xl shadow-xs shrink-0">
+                        {item.value}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 4: Academic Grading Scales */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                  <Activity className="w-4 h-4 text-blue-500" />
+                  <span>Akademik Baholar Shkalasi</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {(metricsData?.gradingScales || getDefaultMetricsData().gradingScales).map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-2xl bg-muted/30 border-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-black text-xs text-foreground">{item.metric}</span>
+                        <span className="text-[10px] font-bold text-blue-500">{item.value}</span>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground block truncate">{item.description}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="pt-4 border-t border-border/20">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setIsMetricsModalOpen(false)}
+              className="border-0 rounded-2xl px-6 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black cursor-pointer"
+            >
+              Tushundim
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================
+          7. AWARD POINTS MODAL (Dialog)
       ======================================================== */}
       {canAwardPoints && (
         <Dialog open={isAwardModalOpen} onOpenChange={setIsAwardModalOpen}>
@@ -751,13 +1196,27 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
   );
 };
 
+function getDefaultSampleStreak(studentId: number): StudentStreakDto {
+  return {
+    studentId,
+    currentStreak: 5,
+    longestStreak: 12,
+    checkedInToday: false,
+    lastActivityDate: new Date(Date.now() - 86400000).toISOString().split('T')[0],
+    streakFreezeCount: 1,
+    totalActiveDays: 20,
+    nextMilestoneDays: 7,
+    nextMilestoneReward: 100,
+  };
+}
+
 function getDefaultSampleLeaderboard(): LeaderboardEntryDto[] {
   return [
-    { rank: 1, studentId: 101, displayName: 'Gulnora Sh. (#I-HR 0220243)', groupName: 'YA-26I0804', gradeLevel: '8-sinf', totalPoints: 850, highestSingleAward: 100, badgeCount: 4 },
-    { rank: 2, studentId: 102, displayName: 'Azizbek B. (#I-HR 0220244)', groupName: 'YA-26I0804', gradeLevel: '8-sinf', totalPoints: 790, highestSingleAward: 100, badgeCount: 3 },
-    { rank: 3, studentId: 103, displayName: 'Madina K. (#I-HR 0220245)', groupName: 'YA-26I0902', gradeLevel: '9-sinf', totalPoints: 720, highestSingleAward: 90, badgeCount: 3 },
-    { rank: 4, studentId: 104, displayName: 'Javohir R. (#I-HR 0220246)', groupName: 'YA-26I0804', gradeLevel: '8-sinf', totalPoints: 680, highestSingleAward: 80, badgeCount: 2 },
-    { rank: 5, studentId: 105, displayName: 'Dilnoza M. (#I-HR 0220247)', groupName: 'YA-26I1001', gradeLevel: '10-sinf', totalPoints: 610, highestSingleAward: 80, badgeCount: 2 },
+    { rank: 1, studentId: 101, displayName: 'Gulnora Sh. (#I-HR 0220243)', groupName: 'YA-26I0804', gradeLevel: '8-sinf', totalPoints: 850, highestSingleAward: 100, badgeCount: 4, currentStreak: 7, longestStreak: 14, level: 3, levelName: 'Active Developer' },
+    { rank: 2, studentId: 102, displayName: 'Azizbek B. (#I-HR 0220244)', groupName: 'YA-26I0804', gradeLevel: '8-sinf', totalPoints: 790, highestSingleAward: 100, badgeCount: 3, currentStreak: 5, longestStreak: 10, level: 3, levelName: 'Active Developer' },
+    { rank: 3, studentId: 103, displayName: 'Madina K. (#I-HR 0220245)', groupName: 'YA-26I0902', gradeLevel: '9-sinf', totalPoints: 720, highestSingleAward: 90, badgeCount: 3, currentStreak: 4, longestStreak: 8, level: 3, levelName: 'Active Developer' },
+    { rank: 4, studentId: 104, displayName: 'Javohir R. (#I-HR 0220246)', groupName: 'YA-26I0804', gradeLevel: '8-sinf', totalPoints: 680, highestSingleAward: 80, badgeCount: 2, currentStreak: 3, longestStreak: 6, level: 3, levelName: 'Active Developer' },
+    { rank: 5, studentId: 105, displayName: 'Dilnoza M. (#I-HR 0220247)', groupName: 'YA-26I1001', gradeLevel: '10-sinf', totalPoints: 610, highestSingleAward: 80, badgeCount: 2, currentStreak: 6, longestStreak: 9, level: 3, levelName: 'Active Developer' },
   ];
 }
 
@@ -767,4 +1226,42 @@ function getDefaultSampleGroupLeaderboard(): GroupLeaderboardEntryDto[] {
     { rank: 2, groupName: 'YA-26I0902 (9-sinf)', studentCount: 15, totalPoints: 8250, averagePoints: 550.0 },
     { rank: 3, groupName: 'YA-26I1001 (10-sinf)', studentCount: 14, totalPoints: 7140, averagePoints: 510.0 },
   ];
+}
+
+function getDefaultMetricsData(): GamificationMetricsDto {
+  return {
+    title: 'AXV Nexsus — Ballar, Gamifikatsiya va Baholash Standartlari',
+    gradingScales: [
+      { metric: 'A+', value: '90 - 100 ball', description: 'A\'lo daraja (Oltin ko‘rsatkich)', categoryOrCondition: '+100 XP va mukammallik nishoni' },
+      { metric: 'A', value: '85 - 89 ball', description: 'Yuqori o‘zlashtirish', categoryOrCondition: '+85-89 XP' },
+      { metric: 'B+', value: '80 - 84 ball', description: 'Yaxshi daraja', categoryOrCondition: '+80-84 XP' },
+      { metric: 'B', value: '70 - 79 ball', description: 'O‘rtacha yuqori', categoryOrCondition: '+70-79 XP' },
+      { metric: 'C', value: '60 - 69 ball', description: 'Yetarli (O‘tish chegarasi)', categoryOrCondition: '+60-69 XP' },
+      { metric: 'D / F', value: '0 - 59 ball', description: 'Qayta tayyorlanish tavsiya etiladi', categoryOrCondition: 'Ballar saqlanadi, qayta topshirish mumkin' },
+    ],
+    xpRules: [
+      { metric: 'Real Test topshirish', value: '10 - 100 XP', description: 'Har bir to‘g‘ri javob uchun 10 XP beriladi', categoryOrCondition: 'Avtomatik' },
+      { metric: 'Mukammal Test (100%)', value: '+50 XP bonus', description: 'Barcha savollarga xatosiz javob berilganda', categoryOrCondition: 'Bir martalik' },
+      { metric: 'Kunlik Streak (Daily Check-in)', value: '+15 XP / kun', description: 'Har kuni platformaga kirib ta’lim olganda', categoryOrCondition: 'Kuniga 1 marta' },
+      { metric: '3 kunlik Streak Bonusi', value: '+30 XP', description: 'Ketma-ket 3 kun uzluksiz intizom', categoryOrCondition: 'Marra bonusi' },
+      { metric: '7 kunlik Haftalik Streak', value: '+100 XP', description: 'Ketma-ket 7 kunlik doimiy faollik', categoryOrCondition: 'Haftalik marra' },
+      { metric: '14 kunlik Temir Intizom', value: '+250 XP', description: '2 hafta uzluksiz o‘rganish marrasi', categoryOrCondition: 'Marra bonusi' },
+      { metric: '30 kunlik Afsonaviy Streak', value: '+500 XP', description: '1 oy uzluksiz ta’lim va o‘zlashtirish', categoryOrCondition: 'Oylik oliy marra' },
+      { metric: 'Amaliy loyiha topshirish', value: '50 - 100 XP', description: 'Portfolio loyihasini mentorga yuborish', categoryOrCondition: 'Vazifa bo‘yicha' },
+      { metric: 'Darsdagi faollik', value: '+25 XP', description: 'Nazariy va amaliy darsda eng faol o‘quvchi', categoryOrCondition: 'Mentor tomonidan' },
+      { metric: 'Mentor maxsus rag‘bati', value: '+30 - 100 XP', description: 'Namunali dasturlash kodi va yechimlar uchun', categoryOrCondition: 'Mentor tomonidan' },
+    ],
+    playerLevels: [
+      { metric: 'Level 1: Novice Coder', value: '0 - 199 XP', description: 'Yangi boshlovchi dasturchi', categoryOrCondition: 'Boshlang‘ich' },
+      { metric: 'Level 2: Junior Explorer', value: '200 - 499 XP', description: 'Asosiy tushunchalarni egallagan o‘quvchi', categoryOrCondition: 'O‘rta daraja' },
+      { metric: 'Level 3: Active Developer', value: '500 - 999 XP', description: 'Amaliy loyihalar va testlarda faol', categoryOrCondition: 'Yuqori daraja' },
+      { metric: 'Level 4: Senior Specialist', value: '1000 - 1999 XP', description: 'Oliy o‘zlashtirishga ega mohir dasturchi', categoryOrCondition: 'Ekspert' },
+      { metric: 'Level 5: Nexus Grandmaster', value: '2000+ XP', description: 'Al-Xorazmiy Vorisi oliy toifasi', categoryOrCondition: 'Afsonaviy' },
+    ],
+    streakRules: [
+      { metric: 'Ketma-ketlik sharti', value: '24-48 soat', description: 'Har kunlik mashq yoki test orqali streak saqlanadi', categoryOrCondition: 'Majburiy' },
+      { metric: 'Streak Freeze (Muzlatgich)', value: '1 ta zaxira', description: '1 kun o‘tkazib yuborilganda streak uzilib ketishidan saqlaydi', categoryOrCondition: 'Avtomatik' },
+      { metric: 'Qayta tiklanish', value: '1-kundan', description: '2 kundan ortiq uzilish bo‘lsa, streak 1 dan qayta boshlanadi', categoryOrCondition: 'Qoida' },
+    ],
+  };
 }

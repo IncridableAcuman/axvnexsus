@@ -41,6 +41,9 @@ class AssessmentServiceTest {
     @Mock
     private StudentAnswerRepository answerRepository;
 
+    @Mock
+    private uz.axm.nexus.grading.application.GradingAndGamificationService gradingService;
+
     @InjectMocks
     private AssessmentService assessmentService;
 

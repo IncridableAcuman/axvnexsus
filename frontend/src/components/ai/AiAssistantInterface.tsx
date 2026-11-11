@@ -23,6 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/shared/ui/toast/ToastContext';
 import { aiAssistantApi } from '@/api';
+import { AiPresentationModal } from '../lessons/AiPresentationModal';
 import type {
   AiRole,
   AiIntent,
@@ -61,6 +62,7 @@ export const AiAssistantInterface: React.FC<AiAssistantInterfaceProps> = ({
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [editableContent, setEditableContent] = useState<string>('');
   const [savingDraft, setSavingDraft] = useState<boolean>(false);
+  const [isPresentationOpen, setIsPresentationOpen] = useState<boolean>(false);
 
   // History of recent prompts in current session
   const [history, setHistory] = useState<Array<{ prompt: string; intent: AiIntent; timestamp: string }>>([]);
@@ -292,6 +294,9 @@ export const AiAssistantInterface: React.FC<AiAssistantInterfaceProps> = ({
                   <>
                     <option value="LESSON_PLAN" className="bg-popover text-popover-foreground">
                       80 daqiqalik Dars Rejasi (Lesson Plan Draft)
+                    </option>
+                    <option value="PRESENTATION_SLIDES" className="bg-popover text-popover-foreground">
+                      Maruza Taqdimot Slaydlari (Rich Text Slides)
                     </option>
                     <option value="QUIZ_GENERATION" className="bg-popover text-popover-foreground">
                       Oraliq Test Savollari (Draft Quiz)
@@ -651,6 +656,18 @@ export const AiAssistantInterface: React.FC<AiAssistantInterfaceProps> = ({
                       <span>Test Savollari Sifatida Saqlash (DRAFT)</span>
                     </Button>
                   )}
+
+                  {(intent === 'PRESENTATION_SLIDES' || (response.content && response.content.includes('---'))) && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="text-xs gap-1.5 font-bold bg-gradient-to-r from-indigo-500/15 via-blue-500/15 to-cyan-500/15 text-indigo-700 dark:text-indigo-300 hover:opacity-90 border-0 rounded-xl"
+                      onClick={() => setIsPresentationOpen(true)}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Taqdimot Rejimida Ochish & Ko‘rish</span>
+                    </Button>
+                  )}
                 </div>
               </div>
             </Card>
@@ -672,6 +689,15 @@ export const AiAssistantInterface: React.FC<AiAssistantInterfaceProps> = ({
           )}
         </div>
       </div>
+
+      {/* AI Presentation Modal */}
+      <AiPresentationModal
+        isOpen={isPresentationOpen}
+        onClose={() => setIsPresentationOpen(false)}
+        initialTopic={userPrompt}
+        initialGrade={gradeLevel}
+        initialSubject={subject}
+      />
     </div>
   );
 };

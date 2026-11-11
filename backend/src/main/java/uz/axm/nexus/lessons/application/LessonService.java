@@ -113,9 +113,19 @@ public class LessonService {
         existing.setScheduleId(updated.getScheduleId());
         existing.setActualOutcome(updated.getActualOutcome());
         existing.setMentorNotes(updated.getMentorNotes());
+        existing.setPresentationSlides(updated.getPresentationSlides());
         existing.setIsTemplate(updated.getIsTemplate());
         existing.setUpdatedAt(LocalDateTime.now());
 
+        return lessonRepository.save(existing);
+    }
+
+    @Transactional
+    public Lesson updatePresentationSlides(Long id, String presentationSlides) {
+        Lesson existing = getLessonById(id);
+        existing.setPresentationSlides(presentationSlides);
+        existing.setUpdatedAt(LocalDateTime.now());
+        log.info("Dars ma'ruza slaydlari yangilandi: LessonID={}", id);
         return lessonRepository.save(existing);
     }
 

@@ -256,7 +256,7 @@ export const App: React.FC<{ initialTab?: string }> = ({ initialTab = 'dashboard
 
           {activeTab === 'admin' && <AdminControlCenter />}
 
-          {activeTab === 'curriculum' && <CurriculumView />}
+          {activeTab === 'curriculum' && <CurriculumView onNavigateTab={setActiveTab} />}
 
           {activeTab === 'profile' && <ProfilePage />}
 

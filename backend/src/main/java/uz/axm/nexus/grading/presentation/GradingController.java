@@ -89,10 +89,34 @@ public class GradingController {
     }
 
     @GetMapping("/profile/{studentId}")
-    @Operation(summary = "O'quvchining gamifikatsiya profili (XP, rank, yutuqlar)")
+    @Operation(summary = "O'quvchining gamifikatsiya profili (XP, rank, yutuqlar, streak)")
     public ResponseEntity<GradingAndGamificationService.StudentGamificationProfile> getStudentProfile(
             @PathVariable Long studentId
     ) {
         return ResponseEntity.ok(gradingService.getStudentProfile(studentId));
+    }
+
+    // Daily Streak & Indicators
+    @PostMapping("/streak/check-in")
+    @Operation(summary = "Kunlik streak'ga erishish (Daily Check-in) va bonus XP olish")
+    public ResponseEntity<GradingAndGamificationService.StreakCheckInResult> checkInStreak(
+            @RequestParam Long studentId,
+            @RequestParam(defaultValue = "DAILY_CHECKIN") String activityType
+    ) {
+        return ResponseEntity.ok(gradingService.recordDailyActivity(studentId, activityType));
+    }
+
+    @GetMapping("/streak/student/{studentId}")
+    @Operation(summary = "O'quvchining joriy streak ko'rsatkichi va intizom tarixi")
+    public ResponseEntity<GradingAndGamificationService.StreakStatusDto> getStudentStreak(
+            @PathVariable Long studentId
+    ) {
+        return ResponseEntity.ok(gradingService.getStudentStreak(studentId));
+    }
+
+    @GetMapping("/metrics")
+    @Operation(summary = "Gamifikatsiya, ballar va baholash mezonlari ko'rsatkichlari")
+    public ResponseEntity<GradingAndGamificationService.GamificationMetricsDto> getGamificationMetrics() {
+        return ResponseEntity.ok(gradingService.getGamificationMetrics());
     }
 }

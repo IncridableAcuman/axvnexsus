@@ -31,5 +31,8 @@ public class AiCompletionResponse {
     // Agar so'rov dars rejasi bo'lsa, tuzilgan dars tuzilmasi
     private AiLessonPlanDetailsDto generatedLessonPlan;
 
+    // Agar so'rov maruza taqdimoti bo'lsa, tuzilgan slaydlar
+    private List<String> generatedPresentationSlides;
+
     private String errorMessage;
 }

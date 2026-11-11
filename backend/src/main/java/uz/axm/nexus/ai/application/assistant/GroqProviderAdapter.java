@@ -85,6 +85,13 @@ public class GroqProviderAdapter implements AiProviderAdapter {
 
                 List<AiQuizQuestionDto> questions = extractQuizQuestions(content, request);
                 AiLessonPlanDetailsDto lessonPlan = extractLessonPlan(content, request);
+                List<String> presentationSlides = Collections.emptyList();
+                if (request.getIntent() == AiIntent.PRESENTATION_SLIDES && content != null && content.contains("---")) {
+                    presentationSlides = Arrays.stream(content.split("(?m)^---+$"))
+                            .map(String::trim)
+                            .filter(s -> !s.isEmpty())
+                            .toList();
+                }
 
                 return AiCompletionResponse.builder()
                         .success(true)
@@ -96,6 +103,7 @@ public class GroqProviderAdapter implements AiProviderAdapter {
                         .tokensUsed(totalTokens > 0 ? totalTokens : 450)
                         .generatedQuizQuestions(questions)
                         .generatedLessonPlan(lessonPlan)
+                        .generatedPresentationSlides(presentationSlides)
                         .build();
 
             } catch (Exception e) {

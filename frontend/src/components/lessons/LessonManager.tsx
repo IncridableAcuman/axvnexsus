@@ -42,6 +42,7 @@ import { useToast } from '@/shared/ui/toast/ToastContext';
 import { lessonPlanApi } from '@/api';
 import type { LessonPlanDto, StudyGroup, Mentor } from '@/types';
 import { LessonQualityModal } from './LessonQualityModal';
+import { AiPresentationModal } from './AiPresentationModal';
 
 export interface LessonManagerProps {
   groups: StudyGroup[];
@@ -57,13 +58,15 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
-  // Selected lesson for editor / delivery / preview / quality
+  // Selected lesson for editor / delivery / preview / quality / presentation
   const [selectedLesson, setSelectedLesson] = useState<LessonPlanDto | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isQualityModalOpen, setIsQualityModalOpen] = useState(false);
   const [isDeliveryMode, setIsDeliveryMode] = useState(false);
   const [activeDeliveryPhase, setActiveDeliveryPhase] = useState<number>(0);
+  const [isPresentationModalOpen, setIsPresentationModalOpen] = useState(false);
+  const [presentationLesson, setPresentationLesson] = useState<LessonPlanDto | null>(null);
 
   // Form State for create/edit
   const [formData, setFormData] = useState<Partial<LessonPlanDto>>({
@@ -262,6 +265,18 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
                   className="bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-lg shadow-indigo-600/30 font-semibold border-0 rounded-xl"
                 >
                   <span>Yangi Dars Rejasi</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="md"
+                  onClick={() => {
+                    setPresentationLesson(lessons[0] || null);
+                    setIsPresentationModalOpen(true);
+                  }}
+                  leftIcon={<Sparkles className="w-4 h-4 text-amber-300" />}
+                  className="bg-white/10 hover:bg-white/20 text-white font-semibold border border-white/20 rounded-xl"
+                >
+                  <span>AI Maruza Taqdimotlari</span>
                 </Button>
               </div>
             </div>
@@ -614,6 +629,19 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
                           variant="ghost"
                           size="sm"
                           onClick={() => {
+                            setPresentationLesson(lesson);
+                            setIsPresentationModalOpen(true);
+                          }}
+                          leftIcon={<Sparkles className="w-3.5 h-3.5 text-cyan-500" />}
+                          className="rounded-xl text-xs bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 border-0 font-semibold"
+                          title="AI Maruza Taqdimoti"
+                        >
+                          <span>Taqdimot</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
                             setSelectedLesson(lesson);
                             setIsQualityModalOpen(true);
                           }}
@@ -776,6 +804,20 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
                       title="Jonli dars o‘tkazish rejimi"
                     >
                       <span>Darsni Boshlash</span>
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setPresentationLesson(lesson);
+                        setIsPresentationModalOpen(true);
+                      }}
+                      leftIcon={<Sparkles className="w-3.5 h-3.5 text-cyan-500" />}
+                      className="rounded-xl text-xs bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 border-0 font-semibold"
+                      title="AI Maruza Taqdimoti"
+                    >
+                      <span>Taqdimot</span>
                     </Button>
 
                     <Button
@@ -1058,6 +1100,17 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => {
+                  setPresentationLesson(selectedLesson);
+                  setIsPresentationModalOpen(true);
+                }}
+                className="bg-primary/10 text-primary hover:bg-primary/20 rounded-xl border-0 font-semibold text-xs"
+              >
+                <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-500" /> Slaydlar Taqdimoti (AI)
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => handleStatusTransition(selectedLesson, 'COMPLETED')}
                 className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-xl border-0"
               >
@@ -1221,6 +1274,22 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
         isOpen={isQualityModalOpen}
         onClose={() => setIsQualityModalOpen(false)}
         lesson={selectedLesson as any}
+      />
+
+      {/* AI Rich-Text Presentation Modal */}
+      <AiPresentationModal
+        isOpen={isPresentationModalOpen}
+        onClose={() => {
+          setIsPresentationModalOpen(false);
+          setPresentationLesson(null);
+        }}
+        lesson={presentationLesson}
+        onSaveSuccess={(updated) => {
+          setLessons((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+          if (selectedLesson?.id === updated.id) {
+            setSelectedLesson(updated);
+          }
+        }}
       />
     </div>
   );

@@ -47,7 +47,14 @@ import uz.axm.nexus.assignments.domain.AssignmentSubmission;
 import uz.axm.nexus.assignments.infrastructure.AssignmentRepository;
 import uz.axm.nexus.assignments.infrastructure.AssignmentSubmissionRepository;
 import uz.axm.nexus.grading.domain.GradeRecord;
+import uz.axm.nexus.grading.domain.PointTransaction;
+import uz.axm.nexus.grading.domain.StudentStreak;
+import uz.axm.nexus.grading.domain.StudentAchievement;
 import uz.axm.nexus.grading.infrastructure.GradeRecordRepository;
+import uz.axm.nexus.grading.infrastructure.PointTransactionRepository;
+import uz.axm.nexus.grading.infrastructure.StudentStreakRepository;
+import uz.axm.nexus.grading.infrastructure.StudentAchievementRepository;
+import uz.axm.nexus.grading.infrastructure.AchievementRepository;
 import uz.axm.nexus.lessons.domain.Lesson;
 import uz.axm.nexus.lessons.domain.StudentLessonProgress;
 import uz.axm.nexus.lessons.infrastructure.LessonRepository;
@@ -86,6 +93,10 @@ public class DataSeeder implements CommandLineRunner {
     private final AssignmentRepository assignmentRepository;
     private final AssignmentSubmissionRepository assignmentSubmissionRepository;
     private final GradeRecordRepository gradeRecordRepository;
+    private final PointTransactionRepository pointTransactionRepository;
+    private final StudentStreakRepository studentStreakRepository;
+    private final StudentAchievementRepository studentAchievementRepository;
+    private final AchievementRepository achievementRepository;
     private final uz.axm.nexus.notifications.infrastructure.NotificationRepository notificationRepository;
     private final uz.axm.nexus.notifications.infrastructure.NotificationPreferenceRepository notificationPreferenceRepository;
     private final uz.axm.nexus.users.infrastructure.UserPreferenceRepository userPreferenceRepository;
@@ -107,6 +118,8 @@ public class DataSeeder implements CommandLineRunner {
             seedOperationalLearningData();
         }
 
+        seedRealAssessmentsAndGamificationData();
+        seedAlXorazmiyRoadmapLessonsAndPresentations();
         seedModule14To16Data();
     }
 
@@ -993,4 +1006,1217 @@ public class DataSeeder implements CommandLineRunner {
                     .build());
         }
     }
+
+    private void seedRealAssessmentsAndGamificationData() {
+        log.info("Seeding Real Assessments, Daily Streaks, and Gamification Data...");
+
+        Mentor mentor = mentorRepository.findAll().stream().findFirst().orElse(null);
+        StudyGroup group = studyGroupRepository.findAll().stream().findFirst().orElse(null);
+        List<Student> students = studentRepository.findAll();
+
+        if (mentor == null || students.isEmpty()) {
+            return;
+        }
+
+        Long mentorId = mentor.getId();
+        Long groupId = group != null ? group.getId() : null;
+
+        // =========================================================================
+        // 1. REAL ASSESSMENTS (Haqiqiy testlar to'plami)
+        // =========================================================================
+        boolean jsQuizExists = assessmentRepository.findAll().stream()
+                .anyMatch(a -> a.getTitle().contains("JavaScript Asoslari va DOM Manipulation"));
+
+        if (!jsQuizExists) {
+            // Assessment 1: 8-sinf JavaScript Asoslari va DOM Manipulation
+            Assessment jsAssessment = assessmentRepository.save(Assessment.builder()
+                    .title("JavaScript Asoslari va DOM Manipulation Nazorati")
+                    .description("8-sinf o'quvchilari uchun zamonaviy JavaScript (ES6+), DOM elementlarini boshqarish va hodisalar bo'yicha real amaliy test.")
+                    .subject("Web Full-Stack Development")
+                    .gradeLevel("8-sinf")
+                    .topic("JavaScript & DOM API")
+                    .assessmentType("QUIZ")
+                    .totalPoints(100)
+                    .passingScore(60)
+                    .durationMinutes(30)
+                    .maxAttempts(2)
+                    .randomizeQuestions(true)
+                    .showCorrectAnswers(true)
+                    .isPublished(true)
+                    .groupId(groupId)
+                    .createdByMentorId(mentorId)
+                    .build());
+
+            List<AssessmentQuestion> jsQuestions = List.of(
+                    AssessmentQuestion.builder()
+                            .assessmentId(jsAssessment.getId())
+                            .questionText("Qaysi kalit so'z bilan e'lon qilingan o'zgaruvchiga qayta qiymat biriktirishga (reassign) yo'l qo'yilmaydi va block-scope ga ega?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(1)
+                            .optionsJson("[\"var\", \"let\", \"const\", \"static\"]")
+                            .correctAnswersJson("2")
+                            .explanation("const kalit so'zi o'zgarmas identifikator yaratadi va faqat o'zi e'lon qilingan blok doirasida amal qiladi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(jsAssessment.getId())
+                            .questionText("const add = (a, b) => a + b; ifodasida natija qaytarish (return) qanday amalga oshiriladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(2)
+                            .optionsJson("[\"return so'zi majburiy, aks holda undefined qaytadi\", \"Bitta ifoda figurali qavssiz yozilganda natija avtomatik qaytariladi (implicit return)\", \"Natijani console.log orqali chiqarish lozim\", \"Funksiya qiymat qaytara olmaydi\"]")
+                            .correctAnswersJson("1")
+                            .explanation("Arrow funksiyada figurali qavslar `{}` ishlatilmasa, yagona ifoda qiymati avtomatik ravishda qaytariladi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(jsAssessment.getId())
+                            .questionText("HTML dagi <button class=\"submit-btn\">Yuborish</button> elementini JavaScript da tanlab olish uchun qaysi metod eng zamonaviy va to'g'ri?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(3)
+                            .optionsJson("[\"document.getElementById('submit-btn')\", \"document.querySelector('.submit-btn')\", \"document.find('.submit-btn')\", \"document.getElementsByName('submit-btn')\"]")
+                            .correctAnswersJson("1")
+                            .explanation("document.querySelector CSS selektorlari (masalan sinf uchun . belgisi) orqali yagona elementni topish uchun standart zamonaviy metoddir.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(jsAssessment.getId())
+                            .questionText("Tugma bosilganda yoki forma yuborilganda sahifaning yangilanib ketishini to'xtatish uchun hodisa (event) obyektining qaysi metodi chaqiriladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(4)
+                            .optionsJson("[\"event.stopPropagation()\", \"event.preventDefault()\", \"event.cancel()\", \"event.freeze()\"]")
+                            .correctAnswersJson("1")
+                            .explanation("event.preventDefault() brauzerning standart harakatini (masalan, formaning sahifani qayta yuklashini) bekor qiladi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(jsAssessment.getId())
+                            .questionText("[1, 2, 3].map(x => x * 2) ifodasining natijasi qanday bo'ladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(5)
+                            .optionsJson("[\"[2, 4, 6]\", \"[1, 2, 3]\", \"6\", \"undefined\"]")
+                            .correctAnswersJson("0")
+                            .explanation("map metodi massivning har bir elementiga berilgan funksiyani qo'llab, yangi massiv hosil qiladi: [2, 4, 6].")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(jsAssessment.getId())
+                            .questionText("[10, 15, 20, 25].filter(n => n > 18) amali natijasida qaysi elementlar qoladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(6)
+                            .optionsJson("[\"[10, 15]\", \"[20, 25]\", \"[15, 20, 25]\", \"25\"]")
+                            .correctAnswersJson("1")
+                            .explanation("filter metodi shartga mos kelgan (18 dan katta) elementlardan iborat yangi massiv qaytaradi: [20, 25].")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(jsAssessment.getId())
+                            .questionText("JavaScript da asinxron operatsiya natijasini kutish uchun await kalit so'zi qayerda ishlatilishi shart?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(7)
+                            .optionsJson("[\"Ixtiyoriy funksiya ichida\", \"Faqat async kalit so'zi bilan e'lon qilingan funksiya ichida\", \"Faqat loop (for/while) sikllari ichida\", \"Faqat try-catch blokida\"]")
+                            .correctAnswersJson("1")
+                            .explanation("await faqat async funksiyalar tanasida asinxron Promiselarni to'xtatib kutish uchun ishlatiladi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(jsAssessment.getId())
+                            .questionText("Serverdan kelgan JSON formatidagi matnni JavaScript obyektiga aylantirish uchun qaysi metod ishlatiladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(8)
+                            .optionsJson("[\"JSON.stringify()\", \"JSON.parse()\", \"JSON.toObject()\", \"JSON.convert()\"]")
+                            .correctAnswersJson("1")
+                            .explanation("JSON.parse() JSON matnini JavaScript ma'lumotlar tuzilmasiga o'giradi. JSON.stringify() esa aksincha obyektni matnga aylantiradi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(jsAssessment.getId())
+                            .questionText("5 === '5' ifodasi qanday natija beradi va nima sababdan?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(9)
+                            .optionsJson("[\"true, chunki qiymatlari bir xil\", \"false, chunki qattiq tenglik (===) turlarni taqqoslaydi va number stringga teng emas\", \"undefined, chunki taqqoslash noto'g'ri\", \"Xatolik yuz beradi\"]")
+                            .correctAnswersJson("1")
+                            .explanation("=== operatori turlarni avtomatik o'zgartirmaydi (type coercion yo'q). 5 (number) va '5' (string) tur jihatidan farq qiladi, shuning uchun false.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(jsAssessment.getId())
+                            .questionText("Foydalanuvchi ma'lumotini brauzerning LocalStorage xotirasiga saqlash uchun qaysi buyruq to'g'ri?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(10)
+                            .optionsJson("[\"localStorage.save('name', 'Ali')\", \"localStorage.setItem('name', 'Ali')\", \"localStorage.add('name', 'Ali')\", \"localStorage.write('name', 'Ali')\"]")
+                            .correctAnswersJson("1")
+                            .explanation("Web Storage API da ma'lumot saqlash uchun setItem(key, value) metodi qo'llaniladi.")
+                            .build()
+            );
+            assessmentQuestionRepository.saveAll(jsQuestions);
+
+            // Assessment 2: 8-sinf HTML5 Semantik Veb va Moslashuvchan CSS Flexbox/Grid
+            Assessment htmlCssAssessment = assessmentRepository.save(Assessment.builder()
+                    .title("HTML5 Semantik Veb va Moslashuvchan CSS Flexbox/Grid")
+                    .description("8-sinf o'quvchilari uchun veb sahifa tuzilishi, semantik teglar, zamonaviy CSS Flexbox va CSS Grid maketlash bilimlari testi.")
+                    .subject("Web Full-Stack Development")
+                    .gradeLevel("8-sinf")
+                    .topic("HTML5 & Responsive CSS")
+                    .assessmentType("QUIZ")
+                    .totalPoints(100)
+                    .passingScore(60)
+                    .durationMinutes(25)
+                    .maxAttempts(2)
+                    .randomizeQuestions(true)
+                    .showCorrectAnswers(true)
+                    .isPublished(true)
+                    .groupId(groupId)
+                    .createdByMentorId(mentorId)
+                    .build());
+
+            List<AssessmentQuestion> htmlQuestions = List.of(
+                    AssessmentQuestion.builder()
+                            .assessmentId(htmlCssAssessment.getId())
+                            .questionText("Veb sahifaning asosiy, unikal mazmunini ifodalovchi yagona semantik teg qaysi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(1)
+                            .optionsJson("[\"<section>\", \"<article>\", \"<main>\", \"<div>\"]")
+                            .correctAnswersJson("2")
+                            .explanation("<main> tegi sahifaning bosh mazmunini o'rab turadi va har bir sahifada faqat bir marta ishlatilishi tavsiya etiladi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(htmlCssAssessment.getId())
+                            .questionText("Yangi oynada ochiluvchi <a target=\"_blank\"> havolalarida xavfsizlik va xotira sizib chiqishini oldini olish uchun qaysi atribut qo'shiladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(2)
+                            .optionsJson("[\"rel=\\\"noopener noreferrer\\\"\", \"secure=\\\"true\\\"\", \"crossorigin=\\\"anonymous\\\"\", \"type=\\\"external\\\"\"]")
+                            .correctAnswersJson("0")
+                            .explanation("rel=\"noopener noreferrer\" yangi ochilgan sahifaning window.opener obyektiga kirishini to'sib, xavfsizlikni kafolatlaydi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(htmlCssAssessment.getId())
+                            .questionText("Foydalanuvchi maydonni to'ldirmasdan formani yubora olmasligi uchun input ga qaysi atribut yoziladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(3)
+                            .optionsJson("[\"validate\", \"required\", \"disabled\", \"important\"]")
+                            .correctAnswersJson("1")
+                            .explanation("required atributi brauzer darajasida bo'sh qoldirilgan maydonlar yuborilishini to'xtatadi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(htmlCssAssessment.getId())
+                            .questionText("<img> tegida rasm yuklanmay qolganda va ko'zi ojizlar dasturlari (screen reader) uchun qaysi atribut majburiydir?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(4)
+                            .optionsJson("[\"title\", \"alt\", \"caption\", \"description\"]")
+                            .correctAnswersJson("1")
+                            .explanation("alt (alternative text) atributi veb qulaylik (Accessibility) va SEO talablariga ko'ra rasmni tavsiflaydi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(htmlCssAssessment.getId())
+                            .questionText("Flex container ichidagi elementlarni ham gorizontal, ham vertikal to'liq markazga keltirish uchun qaysi CSS kombinatsiyasi to'g'ri?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(5)
+                            .optionsJson("[\"display: flex; justify-content: center; align-items: center;\", \"display: flex; text-align: center; margin: auto;\", \"display: flex; float: center; vertical-align: middle;\", \"display: flex; content-align: center;\"]")
+                            .correctAnswersJson("0")
+                            .explanation("justify-content asosiy o'q (main axis) bo'yicha, align-items esa kesishuvchi o'q (cross axis) bo'yicha markazlashtiradi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(htmlCssAssessment.getId())
+                            .questionText("flex-direction: column berilganda elementlar qanday tartibda joylashadi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(6)
+                            .optionsJson("[\"Gorizontal chapdan o'ngga\", \"Vertikal yuqoridan pastga\", \"Gorizontal o'ngdan chapga\", \"To'r (grid) shaklida\"]")
+                            .correctAnswersJson("1")
+                            .explanation("flex-direction: column asosiy o'qni vertikal holatga keltiradi va elementlar ustun shaklida teriladi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(htmlCssAssessment.getId())
+                            .questionText("CSS Grid da grid-template-columns: repeat(3, 1fr); qoidasi nima ma'noni anglatadi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(7)
+                            .optionsJson("[\"3 qator yaratadi\", \"3 ta teng o'lchamli ustun yaratadi\", \"Elementlarni 3 pikselga suradi\", \"3 ta qavat (layer) hosil qiladi\"]")
+                            .correctAnswersJson("1")
+                            .explanation("repeat(3, 1fr) mavjud bo'sh joyni 3 ta teng fraksiyaga (1fr) ajratib, 3 ta ustun hosil qiladi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(htmlCssAssessment.getId())
+                            .questionText("box-sizing: border-box qoidasining asosiy qulayligi nimada?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(8)
+                            .optionsJson("[\"Element chegarasini yo'qotadi\", \"Padding va border berilgan width/height o'lchamining ichiga kiritiladi\", \"Elementni avtomatik markazga suradi\", \"Shrift o'lchamini kattalashtiradi\"]")
+                            .correctAnswersJson("1")
+                            .explanation("border-box bilan elementga padding yoki border qo'shganda umumiy kenglik o'zgarmaydi va dizayn buzilmaydi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(htmlCssAssessment.getId())
+                            .questionText("Kengligi 768px gacha bo'lgan mobil qurilmalar uchun moslashuvchan uslub yozishda media query qanday boshlanadi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(9)
+                            .optionsJson("[\"@media (min-width: 768px)\", \"@media (max-width: 768px)\", \"@screen 768px\", \"@responsive mobile\"]")
+                            .correctAnswersJson("1")
+                            .explanation("max-width: 768px ekranning maksimal eni 768px gacha bo'lgan qurilmalar (smartfon va kichik planshetlar) uchun qoidalarni belgilaydi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(htmlCssAssessment.getId())
+                            .questionText("CSS Custom Properties (O'zgaruvchilar) ni :root da e'lon qilish va elementda ishlatish sintaksisi qaysi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(10)
+                            .optionsJson("[\":root { --brand-color: #3b82f6; } va color: var(--brand-color);\", \":root { $brand-color: #3b82f6; } va color: $brand-color;\", \":root { @brand-color: #3b82f6; } va color: @brand-color;\", \":root { brand-color = #3b82f6; } va color: get(brand-color);\"]")
+                            .correctAnswersJson("0")
+                            .explanation("Standart CSS o'zgaruvchilari ikkita chiziqcha `--` bilan nomlanadi va var(--nomi) orqali chaqiriladi.")
+                            .build()
+            );
+            assessmentQuestionRepository.saveAll(htmlQuestions);
+
+            // Assessment 3: 9-sinf Python Dasturlash va Algoritmik Fikrlash Asoslari
+            Assessment pythonAssessment = assessmentRepository.save(Assessment.builder()
+                    .title("Python Dasturlash va Algoritmik Fikrlash Asoslari")
+                    .description("9-sinf o'quvchilari uchun Python ma'lumot tuzilmalari, funksiyalar, Big-O murakkabligi va saralash algoritmlari bo'yicha mustahkamlovchi test.")
+                    .subject("Computer Science & Python")
+                    .gradeLevel("9-sinf")
+                    .topic("Data Structures & Algorithms")
+                    .assessmentType("QUIZ")
+                    .totalPoints(100)
+                    .passingScore(60)
+                    .durationMinutes(35)
+                    .maxAttempts(2)
+                    .randomizeQuestions(true)
+                    .showCorrectAnswers(true)
+                    .isPublished(true)
+                    .groupId(groupId)
+                    .createdByMentorId(mentorId)
+                    .build());
+
+            List<AssessmentQuestion> pyQuestions = List.of(
+                    AssessmentQuestion.builder()
+                            .assessmentId(pythonAssessment.getId())
+                            .questionText("Python dasturlash tilida list va tuple tuzilmalarining asosiy tub farqi nimada?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(1)
+                            .optionsJson("[\"List faqat raqam saqlaydi, tuple matn saqlaydi\", \"List elementlarini o'zgartirish mumkin (mutable), tuple esa o'zgarmasdir (immutable)\", \"Tuple tezroq qidiradi, lekin xotiradan ko'proq joy oladi\", \"Hech qanday farqi yo'q\"]")
+                            .correctAnswersJson("1")
+                            .explanation("List o'zgaruvchan (mutable) bo'lib, unga append/remove qilish mumkin. Tuple esa yaratilgach elementlari o'zgarmaydi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(pythonAssessment.getId())
+                            .questionText("user = {'name': 'Aziz', 'age': 15} lug'atidan mavjud bo'lmagan kalitni (masalan 'city') xatoliksiz xavfsiz olish uchun qaysi metod ishlatiladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(2)
+                            .optionsJson("[\"user['city']\", \"user.get('city', 'Noma\\'lum')\", \"user.find('city')\", \"user.fetch('city')\"]")
+                            .correctAnswersJson("1")
+                            .explanation("user['city'] KeyError chiqaradi. user.get('city', default) esa xatolik chiqarmasdan ikkinchi parametrni qaytaradi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(pythonAssessment.getId())
+                            .questionText("[x**2 for x in range(5) if x % 2 == 0] ro'yxat ifodasining (list comprehension) natijasi nima bo'ladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(3)
+                            .optionsJson("[\"[0, 4, 16]\", \"[1, 9]\", \"[0, 1, 4, 9, 16]\", \"[4, 16]\"]")
+                            .correctAnswersJson("0")
+                            .explanation("range(5) dan 0, 1, 2, 3, 4 olinadi. Juftlari: 0, 2, 4. Ularning kvadrati: 0**2=0, 2**2=4, 4**2=16 -> [0, 4, 16].")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(pythonAssessment.getId())
+                            .questionText("Saralangan (sorted) massivdan elementni qidirishda Ikkilik qidiruv (Binary Search) algoritmining vaqt murakkabligi qanday?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(4)
+                            .optionsJson("[\"O(n)\", \"O(log n)\", \"O(n^2)\", \"O(1)\"]")
+                            .correctAnswersJson("1")
+                            .explanation("Binary Search har bir qadamda qidiruv sohasini 2 barobar qisqartiradi, shuning uchun uning murakkabligi logarifmik O(log n) ga teng.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(pythonAssessment.getId())
+                            .questionText("Python funksiyasida ixtiyoriy sondagi nomlangan argumentlarni (keyword arguments) qabul qilish uchun nima yoziladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(5)
+                            .optionsJson("[\"*args\", \"**kwargs\", \"&params\", \"...options\"]")
+                            .correctAnswersJson("1")
+                            .explanation("**kwargs nomlangan argumentlarni lug'at (dictionary) sifatida funksiyaga uzatish imkonini beradi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(pythonAssessment.getId())
+                            .questionText("set([1, 2, 2, 3, 3, 3]) to'plamida qanday elementlar saqlanib qoladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(6)
+                            .optionsJson("[\"{1, 2, 2, 3, 3, 3}\", \"{1, 2, 3}\", \"[1, 2, 3]\", \"{6}\"]")
+                            .correctAnswersJson("1")
+                            .explanation("Python set to'plami faqat unikal elementlarni saqlaydi, barcha dublikatlar avtomatik tozalanadi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(pythonAssessment.getId())
+                            .questionText("Rekursiv funksiyada cheksiz sikl va xotira to'lib ketishining (RecursionError) oldini olish uchun nima bo'lishi shart?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(7)
+                            .optionsJson("[\"Global o'zgaruvchi\", \"Asosiy to'xtash sharti (Base case)\", \"While sikli\", \"Try-except bloki\"]")
+                            .correctAnswersJson("1")
+                            .explanation("Har qanday rekursiv funksiyada o'zini chaqirishni to'xtatuvchi asosiy shart (Base case) bo'lishi majburiy.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(pythonAssessment.getId())
+                            .questionText("try...except...finally konstruksiyasida finally bloki qachon ishga tushadi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(8)
+                            .optionsJson("[\"Faqat xatolik yuz berganda\", \"Faqat xatolik yuz bermaganda\", \"Xatolik yuz berish yoki bermasligidan qat'i nazar har doim\", \"Hech qachon bajarilmaydi\"]")
+                            .correctAnswersJson("2")
+                            .explanation("finally bloki resurslarni tozalash yoki faylni yopish uchun har qanday holatda ham (xato bo'lsa ham, bo'lmasa ham) ishlaydi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(pythonAssessment.getId())
+                            .questionText("with open('hisobot.txt', 'r') as f: kontekst menejerining asosiy afzalligi nimada?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(9)
+                            .optionsJson("[\"Faylni tezroq o'qiydi\", \"Fayl bilan ishlash tugagach, uni avtomatik xavfsiz yopadi (f.close)\", \"Faylni shifrlaydi\", \"Faylni avtomatik o'chiradi\"]")
+                            .correctAnswersJson("1")
+                            .explanation("with operatori kontekst menejeri bo'lib, blok yakunlanganda yoki istisno yuz berganda f.close() ni avtomatik chaqiradi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(pythonAssessment.getId())
+                            .questionText("Ikki massivni solishtiradigan Bubble Sort algoritmining o'rtacha va eng yomon holatdagi vaqt murakkabligi qanday?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(10)
+                            .optionsJson("[\"O(1)\", \"O(log n)\", \"O(n)\", \"O(n^2)\"]")
+                            .correctAnswersJson("3")
+                            .explanation("Bubble Sort ichma-ich ikkita sikl orqali barcha juftliklarni taqqoslagani uchun uning murakkabligi O(n^2) kvadratik bo'ladi.")
+                            .build()
+            );
+            assessmentQuestionRepository.saveAll(pyQuestions);
+
+            // Assessment 4: 10-sinf Backend Arxitekturasi, REST API va SQL Ma'lumotlar Bazasi
+            Assessment backendAssessment = assessmentRepository.save(Assessment.builder()
+                    .title("Full-Stack Backend, REST API va SQL Ma'lumotlar Bazasi")
+                    .description("10-sinf va yuqori bosqich o'quvchilari uchun HTTP protokoli, REST tamoyillari, SQL so'rovlari va ma'lumotlar xavfsizligi bo'yicha oraliq nazorat.")
+                    .subject("Backend & Database Engineering")
+                    .gradeLevel("10-sinf")
+                    .topic("REST API & Databases")
+                    .assessmentType("EXAM")
+                    .totalPoints(100)
+                    .passingScore(60)
+                    .durationMinutes(35)
+                    .maxAttempts(2)
+                    .randomizeQuestions(true)
+                    .showCorrectAnswers(true)
+                    .isPublished(true)
+                    .groupId(groupId)
+                    .createdByMentorId(mentorId)
+                    .build());
+
+            List<AssessmentQuestion> backendQuestions = List.of(
+                    AssessmentQuestion.builder()
+                            .assessmentId(backendAssessment.getId())
+                            .questionText("Quyidagi HTTP metodlaridan qaysi biri idempotent EMAS (bir xil so'rov takror yuborilganda serverda yangi ma'lumot hosil qiladi)?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(1)
+                            .optionsJson("[\"GET\", \"PUT\", \"DELETE\", \"POST\"]")
+                            .correctAnswersJson("3")
+                            .explanation("GET, PUT va DELETE bir necha marta bajarilsa ham yakuniy holat bir xil bo'ladi (idempotent). POST esa yangi resurs yaratadi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(backendAssessment.getId())
+                            .questionText("Yangi foydalanuvchi yoki resurs serverda muvaffaqiyatli yaratilganda qaysi HTTP status kodi qaytariladi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(2)
+                            .optionsJson("[\"200 OK\", \"201 Created\", \"204 No Content\", \"301 Moved\"]")
+                            .correctAnswersJson("1")
+                            .explanation("201 Created yangi resurs muvaffaqiyatli barpo etilganini bildiradi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(backendAssessment.getId())
+                            .questionText("RESTful konvensiyasi bo'yicha ID si 10 bo'lgan o'quvchining baholarini olish uchun eng to'g'ri URI manzili qaysi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(3)
+                            .optionsJson("[\"GET /getStudentGrades?id=10\", \"GET /api/v1/students/10/grades\", \"POST /api/v1/fetch/grades/10\", \"GET /api/v1/grades_for_student_10\"]")
+                            .correctAnswersJson("1")
+                            .explanation("REST resurslar iyerarxiyasiga asoslanadi: /students/{id}/grades eng toza va tavsiya etilgan standartdir.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(backendAssessment.getId())
+                            .questionText("SQL da INNER JOIN va LEFT JOIN o'rtasidagi asosiy farq nimada?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(4)
+                            .optionsJson("[\"INNER JOIN tezroq, boshqa farqi yo'q\", \"INNER JOIN faqat ikkala jadvalda ham mos kelgan qatorlarni oladi, LEFT JOIN esa chap jadvalning barcha qatorlarini saqlaydi\", \"LEFT JOIN faqat NULL qiymatlarni oladi\", \"Farqi yo'q\"]")
+                            .correctAnswersJson("1")
+                            .explanation("LEFT JOIN chap tomondagi barcha yozuvlarni olib chiqadi, hatto o'ng jadvalda moslik bo'lmasa ham (NULL qilib).")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(backendAssessment.getId())
+                            .questionText("Tranzaksiyalarning ACID tamoyillarida A (Atomicity) nimani kafolatlaydi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(5)
+                            .optionsJson("[\"Tranzaksiya ichidagi barcha operatsiyalar yo to'liq bajariladi, yoki birontasi ham saqlanmay bekor qilinadi (all or nothing)\", \"Tranzaksiya ma'lumotlarni shifrlaydi\", \"Bir vaqtda faqat bitta foydalanuvchi ulanadi\", \"Tezkor xotirada bajariladi\"]")
+                            .correctAnswersJson("0")
+                            .explanation("Atomlilik barcha qadamlar muvaffaqiyatli bo'lsa tasdiqlanishini (commit), xatolik bo'lsa avvalgi holatga qaytishini (rollback) ta'minlaydi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(backendAssessment.getId())
+                            .questionText("Ma'lumotlar bazasi jadvali ustuniga Indeks (Index) qo'yishning asosiy ta'siri qanday?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(6)
+                            .optionsJson("[\"Qidiruvni (SELECT) keskin tezlashtiradi, ammo yozish (INSERT/UPDATE) vaqtini biroz sekinlashtiradi\", \"Bazada joyni kamaytiradi\", \"SELECT ni sekinlashtiradi\", \"Xavfsizlikni kuchaytiradi\"]")
+                            .correctAnswersJson("0")
+                            .explanation("Indeks B-Tree tuzilmasi orqali qidiruvni O(1) yoki O(log n) ga tezlashtiradi, biroq har bir yozishda indeks yangilanishi sababli yozish tezligi ozroq tushadi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(backendAssessment.getId())
+                            .questionText("JWT (JSON Web Token) qanday uchta asosiy qismdan nuqta bilan ajratilgan holda tashkil topgan?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(7)
+                            .optionsJson("[\"Header, Body, Footer\", \"Header, Payload, Signature\", \"Prefix, Token, Suffix\", \"Public, Private, Secret\"]")
+                            .correctAnswersJson("1")
+                            .explanation("JWT uch qismdan iborat: Header (algoritm), Payload (claims/ma'lumot), Signature (raqamli imzo).")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(backendAssessment.getId())
+                            .questionText("SQL Injection hujumidan himoyalanishning dasturiy ta'minotdagi eng ishonchli usuli qaysi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(8)
+                            .optionsJson("[\"Foydalanuvchi parolini ko'p marta so'rash\", \"Parametrlangan so'rovlar (Prepared Statements) ishlatish\", \"Faqat GET so'rovlarini qabul qilish\", \"Baza portini yashirish\"]")
+                            .correctAnswersJson("1")
+                            .explanation("Prepared Statements orqali kiritilgan ma'lumotlar buyruq sifatida emas, faqat qiymat (literal value) sifatida qabul qilinadi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(backendAssessment.getId())
+                            .questionText("Brauzerda boshqa domenga so'rov yuborishdan oldin serverning ruxsatini aniqlash uchun yuboriladigan 'Preflight' so'rovi qaysi?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(9)
+                            .optionsJson("[\"CONNECT\", \"OPTIONS\", \"HEAD\", \"TRACE\"]")
+                            .correctAnswersJson("1")
+                            .explanation("CORS siyosatiga ko'ra brauzer murakkab so'rovlardan oldin avtomatik OPTIONS so'rovini yuborib ruxsat oladi.")
+                            .build(),
+                    AssessmentQuestion.builder()
+                            .assessmentId(backendAssessment.getId())
+                            .questionText("401 Unauthorized va 403 Forbidden status kodlari o'rtasidagi asosiy farq nima?")
+                            .questionType("SINGLE_CHOICE")
+                            .points(10)
+                            .orderIndex(10)
+                            .optionsJson("[\"Farqi yo'q\", \"401 foydalanuvchi tizimga kirmaganligini bildiradi, 403 esa tizimga kirgan bo'lsa-da kerakli huquq (permission) yo'qligini bildiradi\", \"403 xatolik server buzilganini bildiradi\", \"401 faqat parollar noto'g'riligida chiqadi\"]")
+                            .correctAnswersJson("1")
+                            .explanation("401 (Authentication failure) — tizim shaxsingizni tanimadi; 403 (Authorization failure) — tizim shaxsingizni tanidi, ammo bu amalni bajarishga huquqingiz yo'q.")
+                            .build()
+            );
+            assessmentQuestionRepository.saveAll(backendQuestions);
+
+            log.info("4 ta Real Assessments va 40 ta savollar muvaffaqiyatli yaratildi!");
+        }
+
+        // =========================================================================
+        // 2. STUDENT STREAKS (Kunlik uzluksiz intizom ko'rsatkichlari)
+        // =========================================================================
+        LocalDate today = LocalDate.now();
+        if (studentStreakRepository.count() == 0) {
+            int sCount = 0;
+            int[] currentStreaks = {7, 5, 4, 3, 6, 2, 8, 1, 3, 5, 2};
+            int[] longestStreaks = {14, 10, 8, 6, 9, 4, 12, 3, 5, 9, 4};
+
+            for (Student s : students) {
+                int cur = currentStreaks[sCount % currentStreaks.length];
+                int lng = longestStreaks[sCount % longestStreaks.length];
+                LocalDate lastAct = (sCount % 3 == 0) ? today : (sCount % 3 == 1 ? today : today.minusDays(1));
+
+                studentStreakRepository.save(StudentStreak.builder()
+                        .studentId(s.getId())
+                        .currentStreak(cur)
+                        .longestStreak(Math.max(cur, lng))
+                        .lastActivityDate(lastAct)
+                        .streakFreezeCount(1)
+                        .totalActiveDays(cur * 2 + 5)
+                        .createdAt(LocalDateTime.now().minusDays(30))
+                        .updatedAt(LocalDateTime.now())
+                        .build());
+
+                sCount++;
+            }
+            log.info("O'quvchilar uchun kunlik streaklar bazaga biriktirildi.");
+        }
+
+        // =========================================================================
+        // 3. GAMIFICATION POINTS & AUDIT TRANSACTIONS
+        // =========================================================================
+        if (pointTransactionRepository.count() == 0) {
+            int pIdx = 0;
+            for (Student s : students) {
+                Long sid = s.getId();
+                // 1. Daily streak awards
+                pointTransactionRepository.save(PointTransaction.builder()
+                        .studentId(sid)
+                        .amount(15)
+                        .pointSource("DAILY_STREAK")
+                        .referenceId(today.toString())
+                        .referenceType("DailyStreak")
+                        .idempotencyKey("seed_streak_base_" + sid)
+                        .reason("Kunlik streak faolligi (Uzluksiz intizom) 🔥")
+                        .createdAt(LocalDateTime.now().minusHours(2))
+                        .build());
+
+                // 2. Streak milestones
+                if (pIdx < 4) {
+                    pointTransactionRepository.save(PointTransaction.builder()
+                            .studentId(sid)
+                            .amount(100)
+                            .pointSource("ACHIEVEMENT_UNLOCKED")
+                            .referenceId("7_DAYS")
+                            .referenceType("Milestone")
+                            .idempotencyKey("seed_streak_7d_" + sid)
+                            .reason("7 kunlik haftalik streak marrasi bonusi! 🏆")
+                            .createdAt(LocalDateTime.now().minusDays(1))
+                            .build());
+                }
+
+                // 3. Assessment attempts XP
+                int testScore = 80 + (pIdx % 3) * 10;
+                pointTransactionRepository.save(PointTransaction.builder()
+                        .studentId(sid)
+                        .amount(testScore)
+                        .pointSource("ASSESSMENT")
+                        .referenceId("attempt_" + sid)
+                        .referenceType("StudentAssessmentAttempt")
+                        .idempotencyKey("seed_test_xp_" + sid)
+                        .reason("Oraliq nazorat test natijasi: " + testScore + " XP")
+                        .createdAt(LocalDateTime.now().minusDays(3))
+                        .build());
+
+                if (testScore >= 100) {
+                    pointTransactionRepository.save(PointTransaction.builder()
+                            .studentId(sid)
+                            .amount(50)
+                            .pointSource("ACHIEVEMENT_UNLOCKED")
+                            .referenceId("perfect_" + sid)
+                            .referenceType("StudentAssessmentAttempt")
+                            .idempotencyKey("seed_test_perfect_" + sid)
+                            .reason("Mukammal 100% test natijasi bonusi! 🥇")
+                            .createdAt(LocalDateTime.now().minusDays(3))
+                            .build());
+                }
+
+                // 4. Practical assignment XP
+                int projScore = 85 + (pIdx % 2) * 10;
+                pointTransactionRepository.save(PointTransaction.builder()
+                        .studentId(sid)
+                        .amount(projScore)
+                        .pointSource("PRACTICAL_ASSIGNMENT")
+                        .referenceId("assignment_" + sid)
+                        .referenceType("AssignmentSubmission")
+                        .idempotencyKey("seed_assign_xp_" + sid)
+                        .reason("Shaxsiy veb-portfolio amaliy topshirig'i: " + projScore + " XP")
+                        .createdAt(LocalDateTime.now().minusDays(2))
+                        .build());
+
+                // 5. Mentor bonus for top active students
+                if (pIdx < 3) {
+                    pointTransactionRepository.save(PointTransaction.builder()
+                            .studentId(sid)
+                            .amount(50)
+                            .pointSource("MENTOR_BONUS")
+                            .referenceId("bonus_" + sid)
+                            .referenceType("MentorBonus")
+                            .idempotencyKey("seed_mentor_bonus_" + sid)
+                            .reason("Darsdagi namunali faollik va toza kod uchun mentor rag'bati")
+                            .awardedByUserId(1L)
+                            .createdAt(LocalDateTime.now().minusDays(1))
+                            .build());
+                }
+
+                pIdx++;
+            }
+            log.info("O'quvchilar uchun shaffof XP ballar tranzaksiyalari yuklandi.");
+        }
+
+        // =========================================================================
+        // 4. UNLOCKED ACHIEVEMENTS (Nishonlar va unvonlar)
+        // =========================================================================
+        if (studentAchievementRepository.count() == 0) {
+            achievementRepository.findByCode("FIRST_PERFECT_TEST").ifPresent(ach -> {
+                for (int i = 0; i < Math.min(3, students.size()); i++) {
+                    studentAchievementRepository.save(StudentAchievement.builder()
+                            .studentId(students.get(i).getId())
+                            .achievementId(ach.getId())
+                            .unlockedAt(LocalDateTime.now().minusDays(3))
+                            .progressValue(100)
+                            .build());
+                }
+            });
+
+            achievementRepository.findByCode("STREAK_7_DAYS").ifPresent(ach -> {
+                for (int i = 0; i < Math.min(4, students.size()); i++) {
+                    studentAchievementRepository.save(StudentAchievement.builder()
+                            .studentId(students.get(i).getId())
+                            .achievementId(ach.getId())
+                            .unlockedAt(LocalDateTime.now().minusDays(1))
+                            .progressValue(7)
+                            .build());
+                }
+            });
+
+            achievementRepository.findByCode("PRACTICAL_HERO").ifPresent(ach -> {
+                for (int i = 0; i < Math.min(2, students.size()); i++) {
+                    studentAchievementRepository.save(StudentAchievement.builder()
+                            .studentId(students.get(i).getId())
+                            .achievementId(ach.getId())
+                            .unlockedAt(LocalDateTime.now().minusDays(2))
+                            .progressValue(3)
+                            .build());
+                }
+            });
+            log.info("O'quvchilar uchun nishonlar (achievements) biriktirildi.");
+        }
+    }
+
+    private void seedAlXorazmiyRoadmapLessonsAndPresentations() {
+        log.info("Seeding Al-Xorazmiy Vorislari roadmap lesson sessions, real assessments links and AI rich-text presentations...");
+
+        StudyGroup group8 = studyGroupRepository.findAll().stream()
+                .filter(g -> "8-sinf".equalsIgnoreCase(g.getGradeLevel()) || g.getGroupCode().contains("YA-26I0804"))
+                .findFirst()
+                .orElse(null);
+
+        StudyGroup group11 = studyGroupRepository.findAll().stream()
+                .filter(g -> "11-sinf".equalsIgnoreCase(g.getGradeLevel()) || g.getGroupCode().contains("YA-24I1105"))
+                .findFirst()
+                .orElse(group8);
+
+        Mentor mentor = mentorRepository.findAll().stream().findFirst().orElse(null);
+        if (group8 == null || mentor == null) {
+            return;
+        }
+
+        // 1. Update existing 8-sinf lessons with rich-text presentation slides
+        List<Lesson> existingLessons = lessonRepository.findAll();
+        for (Lesson l : existingLessons) {
+            if (l.getTitle().contains("Kompyuter arxitekturasi") && (l.getPresentationSlides() == null || l.getPresentationSlides().isBlank())) {
+                l.setPresentationSlides("""
+                        # 🚀 1. Fon Neyman Kompyuter Arxitekturasi va CPU Tuzilishi
+                        **Muhammad Al-Xorazmiy Vorislari • 8-Sinf Ta'lim Standarti**
+                        - **Dars turi:** 80 daqiqalik intensiv ma'ruza va amaliyot (PQ-3274)
+                        - **Fan:** Computer Science Foundation & Web Full-Stack
+                        - **O'qituvchi:** Malakali IT Mentor
+
+                        > [!NOTE]
+                        > Ushbu darsda zamonaviy kompyuterlarning yuragi bo'lgan protsessor va xotira o'zaro qanday ishlashini o'rganamiz.
+
+                        > 🎙️ **Spiker izohi:** Darsni o'quvchilardan "Kompyuter tugmasini bosganingizda ichkarida nima ro'y beradi?" degan qiziqarli savol bilan boshlang.
+                        ---
+                        # 🧠 2. Fon Neyman Arxitekturasining 4 Ta Asosiy Qoidasi
+                        1. **Xotira bir xilligi:** Dastur kodlari va ma'lumotlar bitta umumiy xotirada (RAM) saqlanadi.
+                        2. **Manzillanuvchanlik:** Xotiraning har bir katagi o'zining noyob raqamli manziliga ega.
+                        3. **Ketma-ket ijro:** Buyruqlar hisoblagich (Program Counter) orqali navbatma-navbat bajariladi.
+                        4. **Dasturiy boshqaruv:** Protsessor inson aralashuvisiz buyruqlarni avtomatik tarzda qayta ishlaydi.
+
+                        > [!TIP]
+                        > 💡 *Analogiya:* Xotirani katta pochta qutilari devoriga o'xshatish mumkin — har bir quti o'z raqamiga ega!
+
+                        > 🎙️ **Spiker izohi:** Doskaga pochta qutilari yoki shkaf tortmalari chizmasini keltirib o'tish tushunishni 80% ga oshiradi.
+                        ---
+                        # ⚡ 3. CPU Tuzilishi: ALU, CU va Registrlar
+                        - **ALU (Arithmetic Logic Unit):** Matematik amallar (+, -, *, /) va mantiqiy solishtirishlar (AND, OR, NOT).
+                        - **CU (Control Unit):** Boshqaruvchi marshrutizator — buyruqlarni o'qiydi va qolgan qurilmalarga uzatadi.
+                        - **Registrlar (Registers):** CPU ichidagi eng tezkor, nano-sekundlarda ishlovchi mini-xotiralar.
+
+                        ```text
+                        +-------------------------------------------------------+
+                        |                   CENTRAL PROCESSING UNIT             |
+                        |  +--------------------+       +--------------------+  |
+                        |  | Control Unit (CU)  |<----->| Registrlar (AX, BX)|  |
+                        |  +--------------------+       +--------------------+  |
+                        |            ^                            ^             |
+                        |            |                            |             |
+                        |  +--------------------+                 |             |
+                        |  |     ALU Unit       |<----------------+             |
+                        |  +--------------------+                               |
+                        +-------------------------------------------------------+
+                        ```
+
+                        > 🎙️ **Spiker izohi:** O'quvchilarga CU — bu orkestr dirijyori, ALU — sozandalar, registrlar esa dirijyorning qo'lidagi notalar deb ta'rif bering.
+                        ---
+                        # 🔄 4. Buyruqlar Sikli (Instruction Cycle)
+                        Protsessor sekundiga milliardlab marta quyidagi 3 bosqichli siklni takrorlaydi:
+                        1. **Fetch (O'qish):** Xotiradan navbatdagi buyruq o'qib olinadi.
+                        2. **Decode (Dekodlash):** CU buyruq qanday amal ekanligini aniqlaydi.
+                        3. **Execute (Ijro etish):** ALU amalni hisoblaydi va natijani registrga yozadi.
+
+                        ```python
+                        # Soddalashtirilgan buyruqlar sikli:
+                        def cpu_step(pc, memory, reg):
+                            cmd = memory[pc]             # 1. FETCH
+                            opcode, arg = decode(cmd)    # 2. DECODE
+                            reg['AX'] = execute(opcode)  # 3. EXECUTE
+                            return pc + 1
+                        ```
+
+                        > 🎙️ **Spiker izohi:** Bu sikl har bir o'yinda, har bir brauzer sahifasida millionlab marta aylanadi.
+                        ---
+                        # 📊 5. Xotira Iyerarxiyasi: Tezlik va Narx Balansi
+                        - **Registrlar:** ~0.5 ns (Juda kichik hajmli, o'ta tez)
+                        - **L1 / L2 / L3 Kesh (Cache):** ~1-10 ns (SRAM texnologiyasi)
+                        - **RAM (Operativ xotira):** ~50-100 ns (DRAM texnologiyasi, uchuvchan)
+                        - **SSD / NVMe disk:** ~10-50 mks (Flesh xotira, doimiy saqlash)
+
+                        > [!IMPORTANT]
+                        > Nega doimiy xotira sekin? Chunki narx, hajm va tezlik balansi talab etiladi. Barcha xotirani keshdan qilib bo'lmaydi!
+
+                        > 🎙️ **Spiker izohi:** Masala: Agar RAM elektr uzilganda o'chmasa nima bo'lardi? O'quvchilar bilan 2 daqiqa buni muhokama qiling.
+                        ---
+                        # 💻 6. Amaliy Laboratoriya Topshirig'i (25 daqiqa)
+                        **Vazifa:** CPU simulyatori yoki Python skripti yordamida ikkita sonni qo'shish va natijani xotiraga yozish:
+                        1. `LOAD R1, 15` (15 sonini 1-registrga yuklash)
+                        2. `LOAD R2, 27` (27 sonini 2-registrga yuklash)
+                        3. `ADD R1, R2` (ALU da qo'shish)
+                        4. `STORE R1, [0x100]` (Natijani RAM ning 0x100 manziliga yozish)
+
+                        > 🎙️ **Spiker izohi:** Juftliklarda (Pair Programming) ishlashga ruxsat bering.
+                        ---
+                        # 🎯 7. Dars Xulosasi va Mustaqil Vazifa
+                        - **O'rganildi:** Fon Neyman tizimi, CPU bloklari, xotira piramidasi va buyruqlar sikli.
+                        - **Nazorat testi:** Mavzu bo'yicha platformada 4 ta savoldan iborat oraliq testni yechish.
+                        - **Uyga vazifa:** O'z shaxsiy kompyuteringiz texnik parametrlarini (CPU chastotasi, yadrolar soni, RAM hajmi, Kesh L3) aniqlab keling.
+                        """);
+                lessonRepository.save(l);
+            } else if (l.getTitle().contains("HTML5 Semantik") && (l.getPresentationSlides() == null || l.getPresentationSlides().isBlank())) {
+                l.setPresentationSlides("""
+                        # 🌐 1. HTML5 Semantik Teglari va Veb Tuzilishi
+                        **Muhammad Al-Xorazmiy Vorislari • 8-Sinf Ta'lim Standarti**
+                        - **Fan:** Web Full-Stack Development
+                        - **Format:** 80 daqiqalik dars (Nazariya 20m, Amaliyot 25m, Loyiha 20m, Natija 15m)
+
+                        > [!NOTE]
+                        > Semantik teglar qidiruv tizimlari (SEO) va ko'zi ojizlar uchun ovozli dasturlar (Screen Readers) veb-sahifani to'g'ri o'qishi uchun shart!
+
+                        > 🎙️ **Spiker izohi:** O'quvchilarga gazetani ko'rsatib, uning sarlavhasi, maqolasi va pastki qismi qanday ajralganini solishtiring.
+                        ---
+                        # 📐 2. Asosiy Semantik Teglar Strukturasi
+                        - `<header>`: Sayt bosh qismi, logotip va navigatsiya.
+                        - `<nav>`: Asosiy menyu havolalari.
+                        - `<main>`: Sahifaning yagona, takrorlanmas asosiy mazmuni.
+                        - `<section>`: Mantiqiy bo'limlar.
+                        - `<article>`: Mustaqil, alohida o'qilishi mumkin bo'lgan maqola yoki post.
+                        - `<footer>`: Mualliflik huquqi, ijtimoiy tarmoqlar va qo'shimcha havolalar.
+
+                        ```html
+                        <header>
+                          <h1>Al-Xorazmiy Ta'lim Portali</h1>
+                          <nav><a href="#courses">Kurslar</a></nav>
+                        </header>
+                        <main>
+                          <article>
+                            <h2>8-Sinf Dasturlash Asoslari</h2>
+                            <p>Amaliy laboratoriya mashg'ulotlari.</p>
+                          </article>
+                        </main>
+                        <footer><p>&copy; 2026 AXV Hub</p></footer>
+                        ```
+
+                        > 🎙️ **Spiker izohi:** Nega `<div>` o'rniga `<section>` yoki `<article>` ishlatish qoidasini brauzer inspektori (F12) orqali ko'rsating.
+                        ---
+                        # 📝 3. Zamonaviy Formalar va Validatsiya
+                        - `<form action="/api/submit" method="POST">`
+                        - Turli `type` atributlari: `email`, `password`, `number`, `tel`, `date`.
+                        - Atributlar: `required`, `placeholder`, `pattern`, `minlength`.
+
+                        ```html
+                        <form class="student-form">
+                          <label for="name">To'liq ismingiz:</label>
+                          <input type="text" id="name" required placeholder="Aziz Rahimov">
+
+                          <label for="email">Elektron pochta:</label>
+                          <input type="email" id="email" required placeholder="aziz@al-xorazmiy.uz">
+
+                          <button type="submit">Ro'yxatdan o'tish</button>
+                        </form>
+                        ```
+
+                        > [!TIP]
+                        > HTML5 da kiritilgan avtomatik validatsiya foydalanuvchining xato ma'lumot kiritishini JavaScriptsiz ham oldini oladi.
+
+                        > 🎙️ **Spiker izohi:** Noto'g'ri email kiritib submit bosilganda brauzer ko'rsatadigan qizil ogohlantirishni o'quvchilarga ko'rsating.
+                        ---
+                        # 💻 4. Amaliy Topshiriq: IT Markaz Ro'yxatdan O'tish Formasi (25 daqiqa)
+                        - VS Code oching va `index.html` faylini yarating.
+                        - Kamida 6 ta har xil input turlaridan iborat semantik forma yozing.
+                        - Barcha inputlar uchun `<label>` tegi va `required` atributini unutmang!
+
+                        > 🎙️ **Spiker izohi:** Barcha o'quvchilar VS Code da `Emmet` qisqartmalaridan (`form>div*3>input`) foydalanishlarini rag'batlantiring.
+                        ---
+                        # 🎯 5. Dars Xulosasi va Baholash
+                        - **Tekshiruv:** Formaning semantik to'g'riligi va validatsiyasi.
+                        - **Oraliq test:** HTML5 & CSS3 bo'yicha platformadagi oraliq testni ishlang.
+                        - **Uyga vazifa:** Shaxsiy portfoliongiz uchun "Bog'lanish" (Contact) sahifasi maketini yaratish.
+                        """);
+                lessonRepository.save(l);
+            }
+        }
+
+        // 2. Seed JavaScript Fundamentals (8-sinf Roadmap)
+        boolean hasJsLesson = existingLessons.stream().anyMatch(l -> l.getTitle().contains("JavaScript Asoslari"));
+        if (!hasJsLesson) {
+            Lesson jsLesson = lessonRepository.save(Lesson.builder()
+                    .title("JavaScript Asoslari & Algoritmik Mantiq")
+                    .subject("Web Full-Stack Development")
+                    .gradeLevel("8-sinf")
+                    .topic("O'zgaruvchilar (let, const), Funksiyalar, Shartlar va Massivlar")
+                    .learningObjectives("JavaScript dasturlash tilining sintaksisi, o'zgaruvchilar ko'lami va amaliy funksiyalarni o'rganish.")
+                    .expectedOutcomes("O'quvchilar veb sahifadagi dinamik o'zgarishlar va interaktiv hodisalarni boshqara oladi.")
+                    .requiredMaterials("Brauzer Developer Tools (F12), VS Code, Node.js muhiti.")
+                    .theoryContent("JavaScript — vebning jonlantiruvchi tili. Dinamik tiplash, let vs const, funksiyalar va shart operatorlari.")
+                    .theoryDurationMinutes(20)
+                    .practicalContent("Oddiy interaktiv kalkulyator va massivlar ustida amallar bajaruvchi skript yozish.")
+                    .practicalDurationMinutes(25)
+                    .exercises("1. Berilgan massivdan juft sonlarni ajratib oluvchi funksiya yozing.\n2. Foydalanuvchi yoshiga qarab ruxsat beruvchi shartli ifoda tuzing.")
+                    .homework("Do'kon savatchasi (Shopping Cart) hisob-kitobini chiqaruvchi JS skriptini yozish.")
+                    .durationMinutes(80)
+                    .groupId(group8.getId())
+                    .mentorId(mentor.getId())
+                    .status("PUBLISHED")
+                    .presentationSlides("""
+                            # 🚀 1. JavaScript Asoslari & Dasturlash Mantiqi
+                            **Muhammad Al-Xorazmiy Vorislari • 8-Sinf Ta'lim Standarti**
+                            - **Fan:** Web Full-Stack Development
+                            - **Dars formati:** 80 daqiqalik interaktiv ma'ruza va live-coding
+
+                            > [!NOTE]
+                            > JavaScript har qanday zamonaviy veb-ilova va interaktiv interfeyslarning yuragidir.
+
+                            > 🎙️ **Spiker izohi:** Brauzer konsolini (Console) ochib, `alert('Salom Al-Xorazmiy!')` buyrug'ini kiritib ko'rsating.
+                            ---
+                            # 💡 2. O'zgaruvchilar va Ko'lam (Scope)
+                            - `const`: O'zgarmas qiymatlar (birlamchi tanlov).
+                            - `let`: O'zgarishi mumkin bo'lgan o'zgaruvchilar (blokli ko'lam).
+                            - `var`: Eski uslub (funksional ko'lam, zamonaviy kodda tavsiya etilmaydi).
+
+                            ```javascript
+                            const schoolName = "Muhammad Al-Xorazmiy";
+                            let currentStreak = 5;
+                            currentStreak += 1; // 6
+                            console.log(`${schoolName}: Kunlik streak - ${currentStreak}`);
+                            ```
+
+                            > 🎙️ **Spiker izohi:** Nega `const` ko'proq ishlatilishi kerakligini koddagi tasodifiy xatoliklarni oldini olish misolida tushuntiring.
+                            ---
+                            # ⚡ 3. Funksiyalar va Arrow Functions
+                            - Funksiyalar — qayta ishlatiluvchi kod bloklari.
+                            - Zamonaviy strelka funksiyalari (Arrow Syntax).
+
+                            ```javascript
+                            // Standart funksiya:
+                            function calculateXP(score, streak) {
+                                return score * 10 + streak * 50;
+                            }
+
+                            // Zamonaviy Arrow Function:
+                            const calculateLevel = (xp) => Math.floor(xp / 1000) + 1;
+
+                            console.log(`Ball: ${calculateXP(90, 7)} XP, Daraja: ${calculateLevel(3500)}`);
+                            ```
+
+                            > 🎙️ **Spiker izohi:** Arrow funksiyaning qulayligi va qisqaligini o'quvchilarga doskada ko'rsating.
+                            ---
+                            # 💻 4. Amaliy Laboratoriya: Interaktiv Baholash Skripti (25 daqiqa)
+                            - 5 ta o'quvchining ballari ro'yxatini e'lon qiling.
+                            - Eng yuqori ball to'plagan o'quvchini aniqlovchi funksiya yozing.
+                            - Natijani brauzer konsolida chiroyli tarzda formatlab chiqaring.
+
+                            ```javascript
+                            const scores = [85, 92, 78, 96, 88];
+                            const maxScore = Math.max(...scores);
+                            console.log(`Eng yuqori ball: ${maxScore}`);
+                            ```
+
+                            > 🎙️ **Spiker izohi:** O'quvchilarga Spread operatori `...` qanday qilib massivni ochib berishini tushuntiring.
+                            ---
+                            # 🎯 5. Dars Xulosasi, Test & Uy Vazifasi
+                            - **O'rganildi:** O'zgaruvchilar, funksiyalar va massiv amallari.
+                            - **Oraliq test:** "8-sinf: JavaScript Asoslari & Algoritmik Mantiq" testini topshiring.
+                            - **Uyga vazifa:** O'z kalkulyatoringizning hisoblash mantiqini yozib keling.
+                            """)
+                    .build());
+            log.info("Seeded 8-sinf JavaScript Roadmap Lesson: ID={}", jsLesson.getId());
+        }
+
+        // 3. Seed Python & Data Structures (9-sinf Roadmap)
+        boolean hasPythonLesson = existingLessons.stream().anyMatch(l -> l.getTitle().contains("Python"));
+        if (!hasPythonLesson) {
+            Lesson pyLesson = lessonRepository.save(Lesson.builder()
+                    .title("Python Asoslari & Ma'lumotlar Tuzilmalari (Ro'yxatlar va Lug'atlar)")
+                    .subject("Python, Algoritmlar va Data Structures")
+                    .gradeLevel("9-sinf")
+                    .topic("List, Tuple, Set, Dict va Ikkilik Qidiruv (Binary Search)")
+                    .learningObjectives("Python tili yordamida algoritmik mantiq, murakkablik (Big-O) va ma'lumotlar tuzilmalarini tushunish.")
+                    .expectedOutcomes("O'quvchilar O(log N) va O(N) murakkablikdagi algoritmlarni mustaqil kodlay oladilar.")
+                    .requiredMaterials("Python 3.12+, VS Code, Jupyter Notebook.")
+                    .theoryContent("Chiziqli ma'lumotlar tuzilmalari, indeksatsiya, lug'atlar xesh-jadvali va algoritmik samaradorlik.")
+                    .theoryDurationMinutes(20)
+                    .practicalContent("Ikkilik qidiruv (Binary Search) algoritmini Python tilida implementatsiya qilish va testlash.")
+                    .practicalDurationMinutes(25)
+                    .exercises("1. Berilgan tartiblangan ro'yxatda sonni binary search bilan toping.\n2. Matndagi har bir so'zning uchrashlar sonini dict orqali hisoblang.")
+                    .homework("LeetCode 'Two Sum' masalasini lug'at yordamida O(N) vaqtda yechish.")
+                    .durationMinutes(80)
+                    .groupId(group8.getId())
+                    .mentorId(mentor.getId())
+                    .status("PUBLISHED")
+                    .presentationSlides("""
+                            # 🚀 1. Python Asoslari & Ma'lumotlar Tuzilmalari
+                            **Muhammad Al-Xorazmiy Vorislari • 9-Sinf O'quv Dasturi**
+                            - **Fan:** Python, Algoritmlar va Data Structures
+                            - **Format:** 80 daqiqalik intensiv algoritmik ma'ruza va amaliyot
+
+                            > [!NOTE]
+                            > Python — sun'iy intellekt, ma'lumotlar tahlili va olimpiada dasturlashida dunyoning yetakchi tili.
+
+                            > 🎙️ **Spiker izohi:** Darsni o'quvchilardan "1 millionta elementdan sonni qanday qilib 20 ta qadamda topish mumkin?" degan savol bilan boshlang.
+                            ---
+                            # 💡 2. Asosiy Tuzilmalar: List vs Dict
+                            - **List (Ro'yxat):** O'zgaruvchan, tartiblangan elementlar to'plami. Indeks bo'yicha kirish: `O(1)`. Qidirish: `O(N)`.
+                            - **Dictionary (Lug'at):** Kalit-qiymat (Key-Value) juftliklari. Xesh-jadval asosida ishlaydi, qidirish o'rtacha: `O(1)`!
+
+                            ```python
+                            # O'quvchilar va ularning ballari:
+                            students = ["Ali", "Vali", "Zuhra"]
+                            xp_ratings = {"Ali": 4200, "Vali": 3800, "Zuhra": 4900}
+
+                            top_student = max(xp_ratings, key=xp_ratings.get)
+                            print(f"Top o'quvchi: {top_student} ({xp_ratings[top_student]} XP)")
+                            ```
+
+                            > 🎙️ **Spiker izohi:** Telefon kitobidan odamning raqamini qidirish bilan lug'atdan qiymat olish orasidagi o'xshashlikni tushuntiring.
+                            ---
+                            # ⚡ 3. Algoritmik Fikrlash: Big-O va Binary Search
+                            - **Chiziqli qidiruv (Linear Search):** Boshidan oxirigacha birma-bir tekshirish — `O(N)`.
+                            - **Ikkilik qidiruv (Binary Search):** Tartiblangan massivni ikkiga bo'lib qidirish — `O(log N)`.
+
+                            ```python
+                            def binary_search(arr, target):
+                                left, right = 0, len(arr) - 1
+                                while left <= right:
+                                    mid = (left + right) // 2
+                                    if arr[mid] == target:
+                                        return mid
+                                    elif arr[mid] < target:
+                                        left = mid + 1
+                                    else:
+                                        right = mid - 1
+                                return -1
+                            ```
+
+                            > 🎙️ **Spiker izohi:** Qog'oz varag'ini har safar o'rtasidan buklash tajribasini sinfda ko'rsating.
+                            ---
+                            # 💻 4. Amaliy Laboratoriya Topshirig'i (25 daqiqa)
+                            - 1 dan 100 gacha bo'lgan tasodifiy sonni topish o'yinini yozing.
+                            - Kompyuter har bir urinishda "Kattaroq" yoki "Kichikroq" deb yordam beradi.
+                            - Binary search orqali kompyuterni maksimal 7 ta qadamda yutish strategiyasini isbotlang!
+
+                            > 🎙️ **Spiker izohi:** Har bir o'quvchining yechimini tekshirib, qadamlar sonini hisoblashga e'tibor bering.
+                            ---
+                            # 🎯 5. Dars Xulosasi, Oraliq Test & Uy Vazifasi
+                            - **O'rganildi:** List, Dict, Big-O murakkabligi va Ikkilik qidiruv.
+                            - **Oraliq test:** "9-sinf: Python & Ma'lumotlar Tuzilmalari" testini ishlang (Streak va XP oling).
+                            - **Uyga vazifa:** 1000 ta so'zdan iborat matndagi eng ko'p takrorlangan 5 ta so'zni aniqlovchi Python dasturini tuzish.
+                            """)
+                    .build());
+            log.info("Seeded 9-sinf Python Roadmap Lesson: ID={}", pyLesson.getId());
+        }
+
+        // 4. Seed Backend & SQL (10-sinf Roadmap)
+        boolean hasBackendLesson = existingLessons.stream().anyMatch(l -> l.getTitle().contains("Backend"));
+        if (!hasBackendLesson) {
+            Lesson beLesson = lessonRepository.save(Lesson.builder()
+                    .title("Backend Dasturlash, REST API va SQL Ma'lumotlar Bazasi")
+                    .subject("Backend Engineering & Databases")
+                    .gradeLevel("10-sinf")
+                    .topic("RESTful Tamoyillari, Spring Boot / FastAPI, PostgreSQL Relyatsion Jadvallari")
+                    .learningObjectives("Mijoz-server me'morchiligi, HTTP status kodlari va SQL relyatsion ma'lumotlar bazasini o'zaro integratsiya qilish.")
+                    .expectedOutcomes("O'quvchilar xavfsiz REST endpointlar va ma'lumotlar bazasi so'rovlarini yoza oladilar.")
+                    .requiredMaterials("PostgreSQL, Spring Boot / FastAPI, Postman / Thunder Client.")
+                    .theoryContent("REST arxitekturasi, HTTP GET/POST/PUT/DELETE metodlari, Relyatsion jadvallar, Primary va Foreign Key bog'lanishlari.")
+                    .theoryDurationMinutes(20)
+                    .practicalContent("Talabalar ro'yxatini qaytaruvchi va yangi talaba qo'shuvchi REST API endpoint yaratish.")
+                    .practicalDurationMinutes(25)
+                    .exercises("1. 1:N va N:M bog'lanishlarga ikkitadan hayotiy misol keltiring.\n2. SQL JOIN so'rovi yordamida 2 ta jadvaldan umumiy hisobot oling.")
+                    .homework("Kitoblar kutubxonasi uchun 3 ta jadvalli DB sxemasi va REST CRUD endpointlarini tuzish.")
+                    .durationMinutes(80)
+                    .groupId(group11.getId())
+                    .mentorId(mentor.getId())
+                    .status("PUBLISHED")
+                    .presentationSlides("""
+                            # 🚀 1. Backend Dasturlash, REST API va SQL Relyatsion Baza
+                            **Muhammad Al-Xorazmiy Vorislari • 10-Sinf O'quv Dasturi**
+                            - **Fan:** Backend Engineering & Databases
+                            - **Format:** 80 daqiqalik intensiv muhandislik ma'ruzasi
+
+                            > [!NOTE]
+                            > Dunyodagi har qanday yirik platforma (YouTube, Instagram, Telegram) kuchli backend va relyatsion ma'lumotlar bazasiga tayanadi.
+
+                            > 🎙️ **Spiker izohi:** Foydalanuvchi "Yuborish" tugmasini bosganda backend serverda qanday jarayonlar kechishini tasvirlang.
+                            ---
+                            # 🌐 2. RESTful API Me'morchiligi va HTTP Metodlari
+                            - **Client-Server:** Frontend va Backend to'liq mustaqil ishlaydi.
+                            - **Stateless:** Har bir so'rov o'zida barcha kerakli ma'lumotni olib yuradi.
+                            - **HTTP Metodlar:**
+                              - `GET`: Resurslarni o'qish (Idempotent)
+                              - `POST`: Yangi resurs yaratish
+                              - `PUT / PATCH`: Resursni o'zgartirish
+                              - `DELETE`: Resursni o'chirish
+
+                            ```json
+                            // POST /api/students HTTP/1.1
+                            {
+                              "fullName": "Sardor Aliyev",
+                              "gradeLevel": "10-sinf",
+                              "email": "sardor@axm.uz"
+                            }
+                            ```
+
+                            > 🎙️ **Spiker izohi:** Status kodlari: 200 OK, 201 Created, 400 Bad Request, 404 Not Found, 500 Server Error haqida tushuntiring.
+                            ---
+                            # 🗄️ 3. SQL Relyatsion Baza & Primary / Foreign Key
+                            - **Primary Key (Birlamchi kalit):** Har bir yozuvning yagona ID raqami.
+                            - **Foreign Key (Tashqi kalit):** Boshqa jadvalga havola qiluvchi bog'lanish ustuni.
+                            - **JOIN amali:** Jadvallarni o'zaro birlashtirib, yaxlit ma'lumot olish.
+
+                            ```sql
+                            SELECT s.full_name, a.title, g.score
+                            FROM grades g
+                            JOIN students s ON g.student_id = s.id
+                            JOIN assessments a ON g.assessment_id = a.id
+                            WHERE g.score >= 90
+                            ORDER BY g.score DESC;
+                            ```
+
+                            > 🎙️ **Spiker izohi:** Nega barcha ma'lumotni bitta ulkan jadvalga yozmaslik kerakligini (normalizatsiya) tushuntiring.
+                            ---
+                            # 🛡️ 4. Xavfsizlik: SQL Injection va Validatsiya
+                            - **SQL Injection:** Foydalanuvchi yomon niyatda kiritgan SQL buyrug'i bazani buzishi mumkin.
+                            - **Himoya:** Parametrlangan so'rovlar (PreparedStatement / ORM) va DTO validatsiyasi.
+
+                            ```java
+                            @PostMapping
+                            public ResponseEntity<StudentDto> createStudent(@Valid @RequestBody CreateStudentRequest req) {
+                                return ResponseEntity.status(HttpStatus.CREATED).body(studentService.save(req));
+                            }
+                            ```
+
+                            > [!IMPORTANT]
+                            > Hech qachon foydalanuvchi kiritgan matnni to'g'ridan-to'g'ri SQL so'roviga birlashtirmang!
+
+                            > 🎙️ **Spiker izohi:** Prepared Statement qanday qilib matnni faqat ma'lumot sifatida qabul qilishini ko'rsating.
+                            ---
+                            # 💻 5. Amaliy Laboratoriya Topshirig'i (25 daqiqa)
+                            - PostgreSQL bazasida `courses` va `enrollments` jadvallarini yarating.
+                            - Kamida 3 ta test yozuvini kiriting.
+                            - REST endpoint orqali ma'lumotlarni JSON formatida qaytaring va Postman da tekshiring.
+
+                            > 🎙️ **Spiker izohi:** Postman yoki Swagger orqali API testlash jarayonini proyektorda ko'rsating.
+                            ---
+                            # 🎯 6. Dars Xulosasi, Test & Uy Vazifasi
+                            - **O'rganildi:** REST API tamoyillari, SQL JOIN va xavfsiz endpointlar.
+                            - **Oraliq test:** "10-sinf: Backend Dasturlash & SQL" nazorat testini topshiring.
+                            - **Uyga vazifa:** O'z tanlagan mavzuingiz bo'yicha 3 ta jadvaldan iborat relyatsion diagramma chizib kelish.
+                            """)
+                    .build());
+            log.info("Seeded 10-sinf Backend Roadmap Lesson: ID={}", beLesson.getId());
+        }
+
+        // 5. Seed 11-sinf Portfolio & International Market Lesson
+        boolean hasGrade11Lesson = existingLessons.stream().anyMatch(l -> l.getTitle().contains("Portfolio") || l.getTitle().contains("Freelance"));
+        if (!hasGrade11Lesson) {
+            Lesson pLesson = lessonRepository.save(Lesson.builder()
+                    .title("Real-world Loyiha Arxitekturasi, CI/CD va Xalqaro Freelance")
+                    .subject("Professional IT & International Careers")
+                    .gradeLevel("11-sinf")
+                    .topic("GitHub Actions CI/CD, Production Deploy, Upwork/Freelance va Texnik Intervyular")
+                    .learningObjectives("Bitiruvchi o'quvchilarni real IT bozoriga, xalqaro masofaviy ishlarga va kuchli loyihalar portfeliga tayyorlash.")
+                    .expectedOutcomes("O'quvchilar o'zlarining shaxsiy portfolio loyihasini ishlab chiqarish (production) serveriga muvaffaqiyatli joylay oladilar.")
+                    .requiredMaterials("GitHub Actions, Docker, Cloud Server, Upwork/LinkedIn profili.")
+                    .theoryContent("Zamonaviy dasturiy injiniring sikli (SDLC), avtomatlashtirilgan CI/CD sinovlari, Docker konteynerlari va xalqaro frilans bozorining talablari.")
+                    .theoryDurationMinutes(20)
+                    .practicalContent("GitHub Actions orqali loyihani avtomatik sinovdan o'tkazish (Test pipeline) skriptini sozlash.")
+                    .practicalDurationMinutes(25)
+                    .exercises("1. Professional CV va GitHub README profilingizni mukammallashtiring.\n2. Upwork platformasida mijoz taklifiga (Cover Letter) professional javob yozing.")
+                    .homework("O'z Full-Stack loyihangizni Vercel/Render yoki bulutli serverga deploy qilib, havolasini taqdim etish.")
+                    .durationMinutes(80)
+                    .groupId(group11.getId())
+                    .mentorId(mentor.getId())
+                    .status("PUBLISHED")
+                    .presentationSlides("""
+                            # 🚀 1. Real-world Loyiha Arxitekturasi, CI/CD va Xalqaro Bozor
+                            **Muhammad Al-Xorazmiy Vorislari • 11-Sinf Bitiruvchi Bosqichi**
+                            - **Fan:** Professional IT & International Careers
+                            - **Format:** 80 daqiqalik master-klass va amaliy portfolio tahlili
+
+                            > [!NOTE]
+                            > 11-sinfning asosiy maqsadi — to'plangan 4 yillik bilimlarni xalqaro darajadagi portfolio, sertifikatlar va real IT daromadiga aylantirishdir.
+
+                            > 🎙️ **Spiker izohi:** O'quvchilarga dunyo bo'ylab dasturchilar qanday qilib o'z uyidan turib global loyihalarda ishlashlari haqida ilhomlantiruvchi misollar keltiring.
+                            ---
+                            # ⚙️ 2. Zamonaviy CI/CD Pipeline (GitHub Actions)
+                            - **Continuous Integration (Uzluksiz integratsiya):** Har bir git push qilinganda avtomatik testlar ishga tushadi.
+                            - **Continuous Delivery / Deployment (Uzluksiz joylashtirish):** Muvaffaqiyatli kod avtomatik ishlab chiqarish serveriga yuklanadi.
+
+                            ```yaml
+                            # .github/workflows/deploy.yml
+                            name: Production Pipeline
+                            on:
+                              push:
+                                branches: [ main ]
+                            jobs:
+                              test-and-build:
+                                runs-on: ubuntu-latest
+                                steps:
+                                  - uses: actions/checkout@v4
+                                  - name: Run Backend Tests
+                                    run: ./gradlew test
+                                  - name: Build Frontend
+                                    run: npm run build
+                            ```
+
+                            > 🎙️ **Spiker izohi:** GitHub dagi yashil belgi (Passing test) mijozlar va ish beruvchilar uchun eng asosiy ishonch belgisi ekanini uqtiring.
+                            ---
+                            # 💼 3. Xalqaro Frilans (Upwork) va Kuchli Portfel
+                            1. **Natijaga yo'naltirilgan tavsif:** "Men dasturchiman" emas, "Men biznesingiz uchun tezkor va xavfsiz veb-tizimlar yaratib beraman".
+                            2. **Jonli havolalar (Live Demo):** Har bir loyihangizning ishlayotgan havolasi va toza GitHub kodi bo'lishi shart.
+                            3. **Birinchi buyurtma strategiyasi:** Professional cover letter yozish va mijoz muammosiga tayyor yechim taklif qilish.
+
+                            > [!TIP]
+                            > Yaxshi bitta to'liq va mukammal loyiha — chala qolgan 10 ta loyihadan 100 barobar qadrlidir!
+
+                            > 🎙️ **Spiker izohi:** Muvaffaqiyatli Cover Letter namunasini ekranda ko'rsatib, mijoz bilan qanday muzokara olib borishni tahlil qiling.
+                            ---
+                            # 💻 4. Amaliy Laboratoriya: Pipeline Sozlash (25 daqiqa)
+                            - O'z GitHub repositoriyangizda `.github/workflows/main.yml` faylini yarating.
+                            - Kod formatlash va testlarni tekshiruvchi avtomatlashtirilgan pipeline yozing.
+                            - Git commit va push qilib, GitHub interfeysida pipeline muvaffaqiyatli yashil rangga kirishini kuzating!
+
+                            > 🎙️ **Spiker izohi:** Pipeline da xatolik (Red build) chiqqanda loglarni o'qib tuzatishni o'rgating.
+                            ---
+                            # 🎯 5. Dars Xulosasi va Karyera Rejasi
+                            - **O'rganildi:** CI/CD me'morchiligi, deploy jarayoni va xalqaro frilans asoslari.
+                            - **Loyiha himoyasi:** O'quvchilar o'zlarining yakuniy loyihalarini taqdim etishga tayyorgarlik ko'radilar.
+                            - **Uyga vazifa:** Shaxsiy portfolioni jonli serverga joylab, havolani platformaga kiritish.
+                            """)
+                    .build());
+            log.info("Seeded 11-sinf Portfolio & International Market Lesson: ID={}", pLesson.getId());
+        }
+    }
+
 }
