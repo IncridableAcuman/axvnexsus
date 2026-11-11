@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface MentorRepository extends JpaRepository<Mentor, Long> {
     Optional<Mentor> findByFullNameIgnoreCase(String fullName);
     Optional<Mentor> findByFullNameContainingIgnoreCase(String fullName);
+    Optional<Mentor> findByUserId(Long userId);
 }

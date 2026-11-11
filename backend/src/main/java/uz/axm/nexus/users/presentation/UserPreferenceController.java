@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import uz.axm.nexus.shared.application.ApiResponse;
 import uz.axm.nexus.shared.infrastructure.CurrentUserHelper;
 import uz.axm.nexus.users.application.UserPreferenceDto;
@@ -13,6 +14,7 @@ import uz.axm.nexus.users.application.UserPreferenceService;
 @RestController
 @RequestMapping("/api/v1/user-preferences")
 @RequiredArgsConstructor
+@PreAuthorize("isAuthenticated()")
 @Tag(name = "User Preferences", description = "Foydalanuvchi interfeys sozlamalari va lokalizatsiya (Modul 15)")
 public class UserPreferenceController {
 

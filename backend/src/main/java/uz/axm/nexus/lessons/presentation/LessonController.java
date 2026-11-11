@@ -24,6 +24,7 @@ public class LessonController {
     private final LessonService lessonService;
 
     @GetMapping
+    @PreAuthorize("hasAuthority('lessons.read') or isAuthenticated()")
     @Operation(summary = "Barcha darslar ro'yxatini olish")
     public ResponseEntity<List<Lesson>> getAllLessons(
             @RequestParam(required = false) Long groupId,
@@ -39,12 +40,14 @@ public class LessonController {
     }
 
     @GetMapping("/templates")
+    @PreAuthorize("hasAuthority('lessons.read') or isAuthenticated()")
     @Operation(summary = "Qayta ishlatiladigan dars andozalarini olish")
     public ResponseEntity<List<Lesson>> getTemplates() {
         return ResponseEntity.ok(lessonService.getTemplates());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('lessons.read') or isAuthenticated()")
     @Operation(summary = "Dars tafsilotlarini ID orqali olish")
     public ResponseEntity<Lesson> getLessonById(@PathVariable Long id) {
         return ResponseEntity.ok(lessonService.getLessonById(id));
@@ -106,12 +109,14 @@ public class LessonController {
     }
 
     @GetMapping("/{id}/revisions")
+    @PreAuthorize("hasAuthority('lessons.read') or isAuthenticated()")
     @Operation(summary = "Darsning tahrirlashlar tarixi (Reviziyalar)")
     public ResponseEntity<List<LessonRevision>> getRevisions(@PathVariable Long id) {
         return ResponseEntity.ok(lessonService.getLessonRevisions(id));
     }
 
     @GetMapping("/{id}/progress")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Dars bo'yicha o'quvchilar natijalari va o'zlashtirishi")
     public ResponseEntity<List<StudentLessonProgress>> getProgress(@PathVariable Long id) {
         return ResponseEntity.ok(lessonService.getLessonProgress(id));

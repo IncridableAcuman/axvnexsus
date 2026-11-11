@@ -1,7 +1,9 @@
 package uz.axm.nexus.shared.infrastructure;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import uz.axm.nexus.users.domain.User;
@@ -15,6 +17,9 @@ public class CurrentUserHelper {
 
     private final UserRepository userRepository;
 
+    /**
+     * Tizimga kirgan foydalanuvchi ob'ektini olish (agar autentifikatsiyadan o'tgan bo'lsa)
+     */
     public Optional<User> getCurrentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
@@ -24,15 +29,57 @@ public class CurrentUserHelper {
         return Optional.empty();
     }
 
-    public Long getCurrentUserId() {
+    /**
+     * Tizimga kirgan foydalanuvchini olish yoki unauthenticated xatolik tashlash (hech qanday default admin yo'q!)
+     */
+    public User requireCurrentUser() {
         return getCurrentUser()
-                .map(User::getId)
-                .orElse(1L); // Default to first system user if running in open dev mode
+                .orElseThrow(() -> new AuthenticationCredentialsNotFoundException("Autentifikatsiyadan o'tgan foydalanuvchi topilmadi. Tizimga kirish talab etiladi."));
     }
 
+    /**
+     * Joriy foydalanuvchining ID raqami.
+     * Hech qanday 1L yoki admin fallback MAVJUD EMAS.
+     */
+    public Long getCurrentUserId() {
+        return requireCurrentUser().getId();
+    }
+
+    /**
+     * Joriy foydalanuvchining username yoki HEMIS ID si
+     */
+    public String getCurrentUsername() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            return auth.getName();
+        }
+        throw new AuthenticationCredentialsNotFoundException("Autentifikatsiyadan o'tgan foydalanuvchi topilmadi.");
+    }
+
+    /**
+     * Foydalanuvchi tizimga kirganligini tekshirish
+     */
+    public boolean isAuthenticated() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal());
+    }
+
+    /**
+     * Rolni tekshirish (avval SecurityContext auth grantlaridan, so'ngra DB user ob'ektidan)
+     */
     public boolean hasRole(String roleName) {
         if (roleName == null) return false;
         String clean = normalizeRole(roleName);
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            for (GrantedAuthority ga : auth.getAuthorities()) {
+                if (clean.equalsIgnoreCase(normalizeRole(ga.getAuthority()))) {
+                    return true;
+                }
+            }
+        }
+
         return getCurrentUser()
                 .map(u -> {
                     if (clean.equalsIgnoreCase(normalizeRole(u.getRole()))) {
@@ -55,9 +102,22 @@ public class CurrentUserHelper {
         return false;
     }
 
+    /**
+     * Ruxsatni tekshirish (avval SecurityContext auth grantlaridan, so'ngra DB role_permissions dan)
+     */
     public boolean hasPermission(String permissionName) {
         if (permissionName == null) return false;
         if (isSuperAdmin()) return true;
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            for (GrantedAuthority ga : auth.getAuthorities()) {
+                if (permissionName.equalsIgnoreCase(ga.getAuthority())) {
+                    return true;
+                }
+            }
+        }
+
         return getCurrentUser()
                 .map(u -> {
                     if (u.getRoles() != null) {

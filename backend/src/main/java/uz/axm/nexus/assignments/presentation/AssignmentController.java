@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import uz.axm.nexus.assignments.application.AssignmentService;
 import uz.axm.nexus.assignments.domain.Assignment;
 import uz.axm.nexus.assignments.domain.AssignmentSubmission;
+import uz.axm.nexus.shared.application.ResourceOwnershipService;
 
 import java.util.List;
 import java.util.Map;
@@ -21,8 +22,10 @@ import java.util.Map;
 public class AssignmentController {
 
     private final AssignmentService assignmentService;
+    private final ResourceOwnershipService resourceOwnershipService;
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Guruh yoki fan bo'yicha topshiriqlar ro'yxati")
     public ResponseEntity<List<Assignment>> getAllAssignments(
             @RequestParam(required = false) Long groupId,
@@ -32,6 +35,7 @@ public class AssignmentController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Topshiriq tafsilotlari")
     public ResponseEntity<Assignment> getAssignmentById(@PathVariable Long id) {
         return ResponseEntity.ok(assignmentService.getAssignmentById(id));
@@ -45,12 +49,14 @@ public class AssignmentController {
     }
 
     @PostMapping("/{id}/submit")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "O'quvchi tomonidan topshiriq javobini (kod, fayl, matn) yuborish")
     public ResponseEntity<AssignmentSubmission> submitAssignment(
             @PathVariable Long id,
             @RequestBody Map<String, Object> payload
     ) {
         Long studentId = ((Number) payload.get("studentId")).longValue();
+        resourceOwnershipService.verifyStudentAccess(studentId);
         String text = (String) payload.get("submissionText");
         String fileUrl = (String) payload.get("fileUrl");
         return ResponseEntity.ok(assignmentService.submitAssignment(id, studentId, text, fileUrl));
@@ -70,14 +76,17 @@ public class AssignmentController {
     }
 
     @GetMapping("/{id}/submissions")
+    @PreAuthorize("hasAuthority('assessments.grade') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
     @Operation(summary = "Topshiriq bo'yicha barcha yuborilgan ishlar")
     public ResponseEntity<List<AssignmentSubmission>> getSubmissionsByAssignment(@PathVariable Long id) {
         return ResponseEntity.ok(assignmentService.getSubmissionsByAssignment(id));
     }
 
     @GetMapping("/students/{studentId}/submissions")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "O'quvchining barcha topshirgan ishlari")
     public ResponseEntity<List<AssignmentSubmission>> getSubmissionsByStudent(@PathVariable Long studentId) {
+        resourceOwnershipService.verifyStudentAccess(studentId);
         return ResponseEntity.ok(assignmentService.getSubmissionsByStudent(studentId));
     }
 }

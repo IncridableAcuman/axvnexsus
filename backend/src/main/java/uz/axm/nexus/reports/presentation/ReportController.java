@@ -7,6 +7,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import uz.axm.nexus.analytics.application.AnalyticsAuthorizationService;
 import uz.axm.nexus.reports.application.PdfReportService;
@@ -24,15 +25,14 @@ public class ReportController {
     private final AnalyticsAuthorizationService authorizationService;
 
     @GetMapping("/student/{studentId}/pdf")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "O'quvchining shaxsiy progress hisobotini PDF formatida yuklab olish")
     public ResponseEntity<byte[]> exportIndividualStudentPdf(
             @PathVariable Long studentId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestHeader(value = "X-User-Role", required = false) String callerRole,
-            @RequestHeader(value = "X-User-Id", required = false) Long callerUserId
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
-        User requester = authorizationService.resolveCurrentUser(callerRole, callerUserId);
+        User requester = authorizationService.resolveCurrentUser();
         byte[] pdfBytes = pdfReportService.generateIndividualStudentReport(studentId, from, to, requester);
         String filename = PdfReportService.sanitizeFilename("student_progress_" + studentId + "_" + LocalDate.now());
 
@@ -40,15 +40,14 @@ public class ReportController {
     }
 
     @GetMapping("/group/{groupId}/pdf")
+    @PreAuthorize("hasAuthority('reports.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
     @Operation(summary = "Guruh umumiy o'zlashtirish va natijalari hisobotini PDF formatida yuklab olish")
     public ResponseEntity<byte[]> exportGroupPerformancePdf(
             @PathVariable Long groupId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestHeader(value = "X-User-Role", required = false) String callerRole,
-            @RequestHeader(value = "X-User-Id", required = false) Long callerUserId
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
-        User requester = authorizationService.resolveCurrentUser(callerRole, callerUserId);
+        User requester = authorizationService.resolveCurrentUser();
         byte[] pdfBytes = pdfReportService.generateGroupPerformanceReport(groupId, from, to, requester);
         String filename = PdfReportService.sanitizeFilename("group_performance_" + groupId + "_" + LocalDate.now());
 
@@ -56,13 +55,12 @@ public class ReportController {
     }
 
     @GetMapping("/assessment/{assessmentId}/pdf")
+    @PreAuthorize("hasAuthority('reports.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
     @Operation(summary = "Test yoki oraliq baholash natijalari hisobotini PDF formatida yuklab olish")
     public ResponseEntity<byte[]> exportAssessmentResultsPdf(
-            @PathVariable Long assessmentId,
-            @RequestHeader(value = "X-User-Role", required = false) String callerRole,
-            @RequestHeader(value = "X-User-Id", required = false) Long callerUserId
+            @PathVariable Long assessmentId
     ) {
-        User requester = authorizationService.resolveCurrentUser(callerRole, callerUserId);
+        User requester = authorizationService.resolveCurrentUser();
         byte[] pdfBytes = pdfReportService.generateAssessmentResultsReport(assessmentId, requester);
         String filename = PdfReportService.sanitizeFilename("assessment_results_" + assessmentId + "_" + LocalDate.now());
 
@@ -70,15 +68,14 @@ public class ReportController {
     }
 
     @GetMapping("/attendance/{groupId}/pdf")
+    @PreAuthorize("hasAuthority('reports.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
     @Operation(summary = "Guruh davomat statistikasi hisobotini PDF formatida yuklab olish")
     public ResponseEntity<byte[]> exportAttendancePdf(
             @PathVariable Long groupId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestHeader(value = "X-User-Role", required = false) String callerRole,
-            @RequestHeader(value = "X-User-Id", required = false) Long callerUserId
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
-        User requester = authorizationService.resolveCurrentUser(callerRole, callerUserId);
+        User requester = authorizationService.resolveCurrentUser();
         byte[] pdfBytes = pdfReportService.generateAttendanceReport(groupId, from, to, requester);
         String filename = PdfReportService.sanitizeFilename("group_attendance_" + groupId + "_" + LocalDate.now());
 
@@ -86,13 +83,12 @@ public class ReportController {
     }
 
     @GetMapping("/lesson-completion/{groupId}/pdf")
+    @PreAuthorize("hasAuthority('reports.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
     @Operation(summary = "Darslar bajarilishi va mavzular qamrovi hisobotini PDF formatida yuklab olish")
     public ResponseEntity<byte[]> exportLessonCompletionPdf(
-            @PathVariable Long groupId,
-            @RequestHeader(value = "X-User-Role", required = false) String callerRole,
-            @RequestHeader(value = "X-User-Id", required = false) Long callerUserId
+            @PathVariable Long groupId
     ) {
-        User requester = authorizationService.resolveCurrentUser(callerRole, callerUserId);
+        User requester = authorizationService.resolveCurrentUser();
         byte[] pdfBytes = pdfReportService.generateLessonCompletionReport(groupId, requester);
         String filename = PdfReportService.sanitizeFilename("lesson_completion_" + groupId + "_" + LocalDate.now());
 
@@ -100,15 +96,14 @@ public class ReportController {
     }
 
     @GetMapping("/mentor/{mentorId}/pdf")
+    @PreAuthorize("hasAuthority('reports.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR', 'OBSERVER')")
     @Operation(summary = "Mentor pedagogik yuklamasi va faoliyati hisobotini PDF formatida yuklab olish")
     public ResponseEntity<byte[]> exportMentorActivityPdf(
             @PathVariable Long mentorId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestHeader(value = "X-User-Role", required = false) String callerRole,
-            @RequestHeader(value = "X-User-Id", required = false) Long callerUserId
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
-        User requester = authorizationService.resolveCurrentUser(callerRole, callerUserId);
+        User requester = authorizationService.resolveCurrentUser();
         byte[] pdfBytes = pdfReportService.generateMentorActivityReport(mentorId, from, to, requester);
         String filename = PdfReportService.sanitizeFilename("mentor_activity_" + mentorId + "_" + LocalDate.now());
 
@@ -116,14 +111,13 @@ public class ReportController {
     }
 
     @GetMapping("/subjects/pdf")
+    @PreAuthorize("hasAuthority('reports.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'OBSERVER')")
     @Operation(summary = "Fanlar kesimidagi ta'lim samaradorligi hisobotini PDF formatida yuklab olish")
     public ResponseEntity<byte[]> exportSubjectsPdf(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestHeader(value = "X-User-Role", required = false) String callerRole,
-            @RequestHeader(value = "X-User-Id", required = false) Long callerUserId
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
     ) {
-        User requester = authorizationService.resolveCurrentUser(callerRole, callerUserId);
+        User requester = authorizationService.resolveCurrentUser();
         byte[] pdfBytes = pdfReportService.generateSubjectPerformanceReport(from, to, requester);
         String filename = PdfReportService.sanitizeFilename("subjects_performance_" + LocalDate.now());
 
@@ -131,13 +125,12 @@ public class ReportController {
     }
 
     @GetMapping("/academic-period/{periodId}/pdf")
+    @PreAuthorize("hasAuthority('reports.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'OBSERVER')")
     @Operation(summary = "Semestr / O'quv davri yakuniy hisobotini PDF formatida yuklab olish")
     public ResponseEntity<byte[]> exportAcademicPeriodPdf(
-            @PathVariable Long periodId,
-            @RequestHeader(value = "X-User-Role", required = false) String callerRole,
-            @RequestHeader(value = "X-User-Id", required = false) Long callerUserId
+            @PathVariable Long periodId
     ) {
-        User requester = authorizationService.resolveCurrentUser(callerRole, callerUserId);
+        User requester = authorizationService.resolveCurrentUser();
         byte[] pdfBytes = pdfReportService.generateAcademicPeriodSummaryReport(periodId, requester);
         String filename = PdfReportService.sanitizeFilename("academic_period_" + periodId + "_" + LocalDate.now());
 

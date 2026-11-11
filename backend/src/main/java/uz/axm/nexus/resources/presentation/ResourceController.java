@@ -27,6 +27,7 @@ public class ResourceController {
     private final LearningResourceService resourceService;
 
     @GetMapping
+    @PreAuthorize("hasAuthority('materials.read') or isAuthenticated()")
     @Operation(summary = "Resurslar kutubxonasidan qidirish va filtrlash")
     public ResponseEntity<List<LearningResource>> searchResources(
             @RequestParam(required = false) String query,
@@ -38,12 +39,14 @@ public class ResourceController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('materials.read') or isAuthenticated()")
     @Operation(summary = "Resurs ma'lumotlarini ID bo'yicha olish")
     public ResponseEntity<LearningResource> getResourceById(@PathVariable Long id) {
         return ResponseEntity.ok(resourceService.getById(id));
     }
 
     @GetMapping("/by-lesson/{lessonId}")
+    @PreAuthorize("hasAuthority('materials.read') or isAuthenticated()")
     @Operation(summary = "Darsga biriktirilgan resurslarni olish")
     public ResponseEntity<List<LearningResource>> getByLessonId(@PathVariable Long lessonId) {
         return ResponseEntity.ok(resourceService.getByLessonId(lessonId));
@@ -92,6 +95,7 @@ public class ResourceController {
     }
 
     @GetMapping("/{id}/download")
+    @PreAuthorize("hasAuthority('materials.read') or isAuthenticated()")
     @Operation(summary = "Faylni xavfsiz yuklab olish")
     public ResponseEntity<Resource> downloadResource(@PathVariable Long id) {
         LearningResource entity = resourceService.getById(id);
@@ -107,6 +111,7 @@ public class ResourceController {
     }
 
     @GetMapping("/{id}/preview")
+    @PreAuthorize("hasAuthority('materials.read') or isAuthenticated()")
     @Operation(summary = "Faylni brauzerda to'g'ridan-to'g'ri ko'rish (Preview)")
     public ResponseEntity<Resource> previewResource(@PathVariable Long id) {
         LearningResource entity = resourceService.getById(id);

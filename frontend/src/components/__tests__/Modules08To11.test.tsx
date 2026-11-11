@@ -338,7 +338,7 @@ describe('Modules 08 - 11 Frontend Integration Tests', () => {
 
       // Verify test results modal
       await waitFor(() => {
-        expect(screen.getByText(/Tabriklaymiz! Testdan o‘tdingiz/i)).toBeInTheDocument();
+        expect(screen.getByText(/Tabriklaymiz! Testdan Muvaffaqiyatli O‘tdingiz/i)).toBeInTheDocument();
       });
     });
 

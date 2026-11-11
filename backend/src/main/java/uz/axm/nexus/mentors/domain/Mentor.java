@@ -1,10 +1,10 @@
 package uz.axm.nexus.mentors.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.*;
 import lombok.*;
 import uz.axm.nexus.shared.domain.BaseEntity;
+import uz.axm.nexus.users.domain.User;
 
 @Entity
 @Table(name = "mentors")
@@ -14,6 +14,11 @@ import uz.axm.nexus.shared.domain.BaseEntity;
 @AllArgsConstructor
 @Builder
 public class Mentor extends BaseEntity {
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    @JsonIgnore
+    private User user;
 
     @Column(nullable = false)
     private String fullName;

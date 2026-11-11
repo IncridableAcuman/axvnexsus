@@ -25,3 +25,5 @@ databaseChangeLog:
       file: db/changelog/changes/012-gamification-streak-and-real-tests.sql
   - include:
       file: db/changelog/changes/013-lesson-presentation-slides.sql
+  - include:
+      file: db/changelog/changes/014-data-architecture-integrity.sql

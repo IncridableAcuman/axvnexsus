@@ -26,6 +26,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import { ToastContext } from '@/shared/ui/toast/ToastContext';
 import { aiAssistantApi, lessonPlanApi } from '@/api';
 import type { LessonPlanDto, AiPromptRequest } from '@/types';
@@ -122,6 +123,36 @@ export const AiPresentationModal: React.FC<AiPresentationModalProps> = ({
     setCurrentSlideIndex((prev) => Math.max(prev - 1, 0));
   }, []);
 
+  const toggleFullscreen = useCallback(() => {
+    if (!isFullscreen) {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+      setIsFullscreen(true);
+    } else {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+      setIsFullscreen(false);
+    }
+  }, [isFullscreen]);
+
+  const handleClose = useCallback(() => {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+    setIsFullscreen(false);
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
   // Keyboard navigation for presentation
   useEffect(() => {
     if (!isOpen || activeTab !== 'presenter') return;
@@ -137,15 +168,15 @@ export const AiPresentationModal: React.FC<AiPresentationModalProps> = ({
         e.preventDefault();
         goToPrevSlide();
       } else if (e.key === 'f' || e.key === 'F') {
-        setIsFullscreen((prev) => !prev);
+        toggleFullscreen();
       } else if (e.key === 'Escape' && isFullscreen) {
-        setIsFullscreen(false);
+        toggleFullscreen();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, activeTab, goToNextSlide, goToPrevSlide, isFullscreen]);
+  }, [isOpen, activeTab, goToNextSlide, goToPrevSlide, isFullscreen, toggleFullscreen]);
 
   // Parse current slide into title, body, and speaker notes
   const parsedSlide = useMemo(() => {
@@ -277,13 +308,15 @@ export const AiPresentationModal: React.FC<AiPresentationModalProps> = ({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent
-        className={`bg-card text-card-foreground border-0 shadow-2xl transition-all duration-300 p-0 overflow-hidden flex flex-col ${
+        hideCloseButton={true}
+        className={cn(
+          "bg-card text-card-foreground border-0 shadow-2xl transition-all duration-300 p-0 overflow-hidden flex flex-col",
           isFullscreen
-            ? 'fixed inset-0 w-screen h-screen max-w-none max-h-none rounded-none z-[100]'
-            : 'max-w-5xl max-h-[92vh] h-[850px] rounded-3xl'
-        }`}
+            ? "!fixed !inset-0 !left-0 !top-0 !translate-x-0 !translate-y-0 !transform-none !w-screen !h-screen !max-w-none !max-h-none !rounded-none z-[100] m-0 border-0"
+            : "max-w-5xl max-h-[92vh] h-[850px] rounded-3xl"
+        )}
       >
         {/* Top Header Bar */}
         <div className="px-6 py-3.5 border-b border-border/15 bg-card/95 backdrop-blur-md flex items-center justify-between shrink-0">
@@ -354,7 +387,7 @@ export const AiPresentationModal: React.FC<AiPresentationModalProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsFullscreen((prev) => !prev)}
+              onClick={toggleFullscreen}
               title={isFullscreen ? 'Oynani kichraytirish (Esc)' : 'To‘liq ekran (F)'}
               className="w-8 h-8 p-0 rounded-xl hover:bg-muted/60 border-0"
             >
@@ -363,8 +396,9 @@ export const AiPresentationModal: React.FC<AiPresentationModalProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              onClick={onClose}
+              onClick={handleClose}
               className="w-8 h-8 p-0 rounded-xl hover:bg-muted/60 border-0"
+              title="Yopish"
             >
               <X className="w-4 h-4" />
             </Button>
@@ -375,7 +409,10 @@ export const AiPresentationModal: React.FC<AiPresentationModalProps> = ({
         <div className="flex-1 overflow-hidden flex flex-col bg-muted/20">
           {/* TAB 1: PRESENTER MODE (SLIDE VIEWER) */}
           {activeTab === 'presenter' && (
-            <div className="flex-1 flex flex-col justify-between p-4 sm:p-8 max-w-5xl mx-auto w-full overflow-hidden">
+            <div className={cn(
+              "flex-1 flex flex-col justify-between overflow-hidden mx-auto w-full transition-all duration-300",
+              isFullscreen ? "p-6 sm:p-10 max-w-7xl h-full" : "p-4 sm:p-8 max-w-5xl"
+            )}>
               {/* Slide Counter and Progress Pill */}
               <div className="flex items-center justify-between pb-3 shrink-0">
                 <div className="flex items-center gap-2">
@@ -403,7 +440,10 @@ export const AiPresentationModal: React.FC<AiPresentationModalProps> = ({
               </div>
 
               {/* Current Slide Display Canvas (Luxury Presentation Style) */}
-              <div className="flex-1 rounded-3xl bg-card text-card-foreground shadow-xl border border-border/20 p-6 sm:p-10 flex flex-col justify-between overflow-y-auto animate-in fade-in zoom-in-98 duration-200">
+              <div className={cn(
+                "flex-1 rounded-3xl bg-card text-card-foreground shadow-xl border border-border/20 flex flex-col justify-between overflow-y-auto animate-in fade-in zoom-in-98 duration-200",
+                isFullscreen ? "p-8 sm:p-12 lg:p-14" : "p-6 sm:p-10"
+              )}>
                 <div className="space-y-6">
                   {/* Slide Title */}
                   <div className="space-y-2 border-b border-border/15 pb-4">
@@ -415,7 +455,10 @@ export const AiPresentationModal: React.FC<AiPresentationModalProps> = ({
                         #{String(currentSlideIndex + 1).padStart(2, '0')}
                       </span>
                     </div>
-                    <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-foreground tracking-tight leading-tight">
+                    <h2 className={cn(
+                      "font-black text-foreground tracking-tight leading-tight",
+                      isFullscreen ? "text-2xl sm:text-3xl lg:text-4xl" : "text-xl sm:text-2xl lg:text-3xl"
+                    )}>
                       {parsedSlide.title}
                     </h2>
                   </div>
@@ -499,7 +542,10 @@ export const AiPresentationModal: React.FC<AiPresentationModalProps> = ({
 
           {/* TAB 2: RICH TEXT / MARKDOWN EDITOR */}
           {activeTab === 'editor' && (
-            <div className="flex-1 p-6 max-w-5xl mx-auto w-full flex flex-col space-y-4 overflow-hidden">
+            <div className={cn(
+              "flex-1 p-6 mx-auto w-full flex flex-col space-y-4 overflow-hidden",
+              isFullscreen ? "max-w-7xl h-full" : "max-w-5xl"
+            )}>
               <div className="flex flex-wrap items-center justify-between gap-3 shrink-0">
                 <div>
                   <h3 className="text-base font-bold text-foreground">
@@ -583,7 +629,10 @@ export const AiPresentationModal: React.FC<AiPresentationModalProps> = ({
 
           {/* TAB 3: AI GENERATOR */}
           {activeTab === 'ai-generator' && (
-            <div className="flex-1 p-6 max-w-4xl mx-auto w-full flex flex-col space-y-6 overflow-y-auto">
+            <div className={cn(
+              "flex-1 p-6 mx-auto w-full flex flex-col space-y-6 overflow-y-auto",
+              isFullscreen ? "max-w-5xl h-full" : "max-w-4xl"
+            )}>
               <div className="space-y-1">
                 <h3 className="text-lg font-black text-foreground flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-amber-500" />

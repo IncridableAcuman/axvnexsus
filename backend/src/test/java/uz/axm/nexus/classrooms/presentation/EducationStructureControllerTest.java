@@ -18,6 +18,8 @@ import uz.axm.nexus.mentors.infrastructure.MentorRepository;
 import uz.axm.nexus.users.domain.Student;
 import uz.axm.nexus.users.infrastructure.StudentRepository;
 
+import org.springframework.security.test.context.support.WithMockUser;
+
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -25,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@WithMockUser(username = "admin", roles = {"SUPER_ADMIN", "ADMIN"})
 class EducationStructureControllerTest {
 
     @Autowired

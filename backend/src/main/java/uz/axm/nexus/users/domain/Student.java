@@ -1,5 +1,6 @@
 package uz.axm.nexus.users.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import uz.axm.nexus.classrooms.domain.StudyGroup;
@@ -14,6 +15,11 @@ import uz.axm.nexus.shared.domain.BaseEntity;
 @AllArgsConstructor
 @Builder
 public class Student extends BaseEntity {
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    @JsonIgnore
+    private User user;
 
     @Column(nullable = false)
     private String fullName; // e.g. "Gulnora Shamuratova Xolmurad Qizi"

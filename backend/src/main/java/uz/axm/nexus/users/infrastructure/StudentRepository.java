@@ -17,5 +17,6 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     }
     Optional<Student> findByPinfl(String pinfl);
     Optional<Student> findByStudentIdNumber(String studentIdNumber);
+    Optional<Student> findByUserId(Long userId);
     Optional<Student> findByFullNameIgnoreCase(String fullName);
 }

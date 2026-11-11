@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import uz.axm.nexus.grading.application.GradingAndGamificationService;
 import uz.axm.nexus.grading.domain.GradeRecord;
 import uz.axm.nexus.grading.domain.PointTransaction;
+import uz.axm.nexus.shared.application.ResourceOwnershipService;
 
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ import java.util.Map;
 public class GradingController {
 
     private final GradingAndGamificationService gradingService;
+    private final ResourceOwnershipService resourceOwnershipService;
 
     // Academic Grades
     @PostMapping("/grades")
@@ -31,8 +33,10 @@ public class GradingController {
     }
 
     @GetMapping("/grades/student/{studentId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "O'quvchining barcha fanlar bo'yicha akademik baholari")
     public ResponseEntity<List<GradeRecord>> getStudentGrades(@PathVariable Long studentId) {
+        resourceOwnershipService.verifyStudentAccess(studentId);
         return ResponseEntity.ok(gradingService.getStudentGrades(studentId));
     }
 
@@ -68,13 +72,16 @@ public class GradingController {
     }
 
     @GetMapping("/points/student/{studentId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "O'quvchining ball tranzaksiyalari tarixi")
     public ResponseEntity<List<PointTransaction>> getStudentTransactions(@PathVariable Long studentId) {
+        resourceOwnershipService.verifyStudentAccess(studentId);
         return ResponseEntity.ok(gradingService.getStudentPointTransactions(studentId));
     }
 
     // Leaderboards
     @GetMapping("/leaderboard")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Talabalar reytingi (Haftalik, Oylik, Umumiy)")
     public ResponseEntity<List<GradingAndGamificationService.LeaderboardEntry>> getLeaderboard(
             @RequestParam(defaultValue = "ALL_TIME") String period
@@ -83,12 +90,14 @@ public class GradingController {
     }
 
     @GetMapping("/leaderboard/groups")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Guruhlar umumiy reytingi")
     public ResponseEntity<List<GradingAndGamificationService.GroupLeaderboardEntry>> getGroupLeaderboard() {
         return ResponseEntity.ok(gradingService.getGroupLeaderboard());
     }
 
     @GetMapping("/profile/{studentId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "O'quvchining gamifikatsiya profili (XP, rank, yutuqlar, streak)")
     public ResponseEntity<GradingAndGamificationService.StudentGamificationProfile> getStudentProfile(
             @PathVariable Long studentId
@@ -98,23 +107,28 @@ public class GradingController {
 
     // Daily Streak & Indicators
     @PostMapping("/streak/check-in")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Kunlik streak'ga erishish (Daily Check-in) va bonus XP olish")
     public ResponseEntity<GradingAndGamificationService.StreakCheckInResult> checkInStreak(
             @RequestParam Long studentId,
             @RequestParam(defaultValue = "DAILY_CHECKIN") String activityType
     ) {
+        resourceOwnershipService.verifyStudentAccess(studentId);
         return ResponseEntity.ok(gradingService.recordDailyActivity(studentId, activityType));
     }
 
     @GetMapping("/streak/student/{studentId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "O'quvchining joriy streak ko'rsatkichi va intizom tarixi")
     public ResponseEntity<GradingAndGamificationService.StreakStatusDto> getStudentStreak(
             @PathVariable Long studentId
     ) {
+        resourceOwnershipService.verifyStudentAccess(studentId);
         return ResponseEntity.ok(gradingService.getStudentStreak(studentId));
     }
 
     @GetMapping("/metrics")
+    @PreAuthorize("hasAuthority('analytics.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR', 'OBSERVER')")
     @Operation(summary = "Gamifikatsiya, ballar va baholash mezonlari ko'rsatkichlari")
     public ResponseEntity<GradingAndGamificationService.GamificationMetricsDto> getGamificationMetrics() {
         return ResponseEntity.ok(gradingService.getGamificationMetrics());

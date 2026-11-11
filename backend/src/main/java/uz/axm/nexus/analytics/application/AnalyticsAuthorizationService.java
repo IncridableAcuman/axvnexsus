@@ -3,13 +3,13 @@ package uz.axm.nexus.analytics.application;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.stereotype.Service;
 import uz.axm.nexus.classrooms.domain.StudyGroup;
 import uz.axm.nexus.classrooms.infrastructure.StudyGroupRepository;
 import uz.axm.nexus.mentors.domain.Mentor;
 import uz.axm.nexus.mentors.infrastructure.MentorRepository;
+import uz.axm.nexus.shared.infrastructure.CurrentUserHelper;
 import uz.axm.nexus.users.domain.Student;
 import uz.axm.nexus.users.domain.User;
 import uz.axm.nexus.users.infrastructure.StudentRepository;
@@ -24,33 +24,26 @@ public class AnalyticsAuthorizationService {
     private final StudentRepository studentRepository;
     private final MentorRepository mentorRepository;
     private final StudyGroupRepository studyGroupRepository;
+    private final CurrentUserHelper currentUserHelper;
 
-    public User resolveCurrentUser(String overrideRole, Long overrideUserId) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
-            String username = auth.getName();
-            return userRepository.findByUsername(username).orElse(null);
-        }
+    /**
+     * Tizimga kirgan foydalanuvchini faqat va faqat SecurityContext orqali xavfsiz aniqlash.
+     * Hech qanday soxtalashtiriluvchi HTTP headerlar (X-User-Role, X-User-Id) qabul qilinmaydi.
+     */
+    public User resolveCurrentUser() {
+        return currentUserHelper.requireCurrentUser();
+    }
 
-        if (overrideUserId != null) {
-            return userRepository.findById(overrideUserId).orElse(null);
-        }
-
-        if (overrideRole != null && !overrideRole.isBlank()) {
-            return User.builder()
-                    .username("api-caller")
-                    .fullName("API Foydalanuvchisi")
-                    .role(overrideRole.startsWith("ROLE_") ? overrideRole : "ROLE_" + overrideRole)
-                    .build();
-        }
-
-        return null;
+    /**
+     * Eski metod signaturasi bilan moslik uchun (header qiymatlari xavfsizlik maqsadida inkor etiladi)
+     */
+    public User resolveCurrentUser(String ignoredRole, Long ignoredUserId) {
+        return resolveCurrentUser();
     }
 
     public void validateStudentAccess(Long targetStudentId, User requester) {
         if (requester == null) {
-            // For testing or development without auth token, permit
-            return;
+            throw new AuthenticationCredentialsNotFoundException("Autentifikatsiya talab etiladi.");
         }
 
         // Admins and Regional Coordinators have full access
@@ -62,7 +55,7 @@ public class AnalyticsAuthorizationService {
         if (isMentor(requester)) {
             Student student = studentRepository.findById(targetStudentId)
                     .orElseThrow(() -> new IllegalArgumentException("O'quvchi topilmadi: " + targetStudentId));
-            
+
             Mentor mentor = mentorRepository.findAll().stream()
                     .filter(m -> (m.getEmail() != null && m.getEmail().equalsIgnoreCase(requester.getEmail())) ||
                                  (m.getFullName() != null && m.getFullName().equalsIgnoreCase(requester.getFullName())))
@@ -73,7 +66,6 @@ public class AnalyticsAuthorizationService {
                     return;
                 }
             }
-            // If mentor directly matches
             if (student.getMentor() != null && mentor != null && student.getMentor().getId().equals(mentor.getId())) {
                 return;
             }
@@ -94,12 +86,15 @@ public class AnalyticsAuthorizationService {
             if (!matches) {
                 throw new AccessDeniedException("O'quvchi faqat o'zining shaxsiy ko'rsatkichlarini ko'rishga ruxsat etilgan.");
             }
+            return;
         }
+
+        throw new AccessDeniedException("Ushbu hisobotni ko'rish uchun ruxsat mavjud emas.");
     }
 
     public void validateGroupAccess(Long targetGroupId, User requester) {
         if (requester == null) {
-            return;
+            throw new AuthenticationCredentialsNotFoundException("Autentifikatsiya talab etiladi.");
         }
 
         if (isAdminOrCoordinator(requester)) {
@@ -126,6 +121,8 @@ public class AnalyticsAuthorizationService {
         if ("STUDENT".equals(role)) {
             throw new AccessDeniedException("O'quvchilar to'liq guruh reytingi va hisobotlarini yuklab olish huquqiga ega emas.");
         }
+
+        throw new AccessDeniedException("Ushbu guruh hisobotini ko'rish uchun ruxsat mavjud emas.");
     }
 
     public boolean isAdminOrCoordinator(User requester) {

@@ -1,9 +1,12 @@
 package uz.axm.nexus.identity.infrastructure;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -19,6 +22,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import uz.axm.nexus.shared.application.ApiResponse;
 
 import java.util.Arrays;
 import java.util.List;
@@ -33,6 +37,7 @@ public class SecurityConfig {
     private String allowedOrigins;
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ObjectMapper objectMapper;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -44,15 +49,35 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/auth/**",
                                 "/api/auth/**",
+                                "/api/mentors/public/**",
+                                "/api/v1/health",
+                                "/api/health",
+                                "/actuator/health",
+                                "/actuator/info",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
-                                "/actuator/**",
                                 "/error",
                                 "/static/**",
                                 "/uploads/**"
                         ).permitAll()
-                        .anyRequest().permitAll() // Allow open access for development/modules while enabling JWT extraction via filter
+                        .anyRequest().authenticated()
+                )
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding("UTF-8");
+                            ApiResponse<Void> body = ApiResponse.error("ERR_UNAUTHORIZED", "Tizimga kirish talab etiladi. Token mavjud emas yoki yaroqsiz.");
+                            response.getWriter().write(objectMapper.writeValueAsString(body));
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding("UTF-8");
+                            ApiResponse<Void> body = ApiResponse.error("ERR_ACCESS_DENIED", "Ushbu amalni bajarish uchun sizda yetarli huquq mavjud emas.");
+                            response.getWriter().write(objectMapper.writeValueAsString(body));
+                        })
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

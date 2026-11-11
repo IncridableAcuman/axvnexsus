@@ -801,9 +801,16 @@ public class DataSeeder implements CommandLineRunner {
             mentor1.setRoles(mentorRoles);
             mentor1.setEnabled(true);
             mentor1.setEmailVerified(true);
-            userRepository.save(mentor1);
+            mentor1 = userRepository.save(mentor1);
             log.info("Existing Mentor user updated to HEMIS ID: 32600001");
         }
+        User finalMentor1 = mentor1;
+        mentorRepository.findByFullNameContainingIgnoreCase("Izzatbek").ifPresent(m -> {
+            if (m.getUser() == null) {
+                m.setUser(finalMentor1);
+                mentorRepository.save(m);
+            }
+        });
 
         User mentor2 = userRepository.findByUsername("32600002")
                 .or(() -> userRepository.findByEmailIgnoreCase("dilnoza.eng@gmail.com"))
@@ -831,9 +838,16 @@ public class DataSeeder implements CommandLineRunner {
             mentor2.setRoles(mentorRoles);
             mentor2.setEnabled(true);
             mentor2.setEmailVerified(true);
-            userRepository.save(mentor2);
+            mentor2 = userRepository.save(mentor2);
             log.info("Existing English Mentor user updated to HEMIS ID: 32600002");
         }
+        User finalMentor2 = mentor2;
+        mentorRepository.findByFullNameContainingIgnoreCase("Dilnoza").ifPresent(m -> {
+            if (m.getUser() == null) {
+                m.setUser(finalMentor2);
+                mentorRepository.save(m);
+            }
+        });
 
         // 3. Real Student accounts with HEMIS ID (42600001+)
         List<Student> allStudents = studentRepository.findAll();
@@ -874,6 +888,11 @@ public class DataSeeder implements CommandLineRunner {
                 studentUser.setEnabled(true);
                 studentUser.setEmailVerified(true);
                 userRepository.save(studentUser);
+            }
+            User finalStudentUser = studentUser;
+            if (finalStudentUser != null && s.getUser() == null) {
+                s.setUser(finalStudentUser);
+                studentRepository.save(s);
             }
             seq++;
         }

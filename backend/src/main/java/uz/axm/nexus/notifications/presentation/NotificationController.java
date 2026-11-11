@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import uz.axm.nexus.notifications.application.*;
 import uz.axm.nexus.shared.application.ApiResponse;
 import uz.axm.nexus.shared.application.PageResponse;
@@ -19,6 +20,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/notifications")
 @RequiredArgsConstructor
+@PreAuthorize("isAuthenticated()")
 @Tag(name = "Notifications", description = "Bildirishnomalar va xabarnomalar boshqaruvi (Modul 14)")
 public class NotificationController {
 

@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import uz.axm.nexus.identity.application.ResetPasswordResultDto;
 import uz.axm.nexus.shared.application.ApiResponse;
@@ -25,6 +26,7 @@ public class StudentController {
     private final StudentService studentService;
 
     @GetMapping
+    @PreAuthorize("hasAuthority('users.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'REGIONAL_COORDINATOR', 'COORDINATOR', 'MENTOR', 'OBSERVER')")
     @Operation(summary = "O'quvchilar ro'yxatini olish (sinflar, mentor yoki guruh filtri bilan)")
     public ResponseEntity<List<Student>> getStudents(
             @RequestParam(required = false) String gradeLevel,
@@ -44,12 +46,14 @@ public class StudentController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('users.create') or hasAuthority('users.update') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
     @Operation(summary = "Yangi o'quvchi qo'shish yoki tahrirlash")
     public ResponseEntity<Student> saveStudent(@RequestBody Student student) {
         return ResponseEntity.ok(studentService.saveStudent(student));
     }
 
     @PostMapping("/provision")
+    @PreAuthorize("hasAuthority('users.create') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
     @Operation(summary = "Mentor tomonidan o'quvchi qo'shish va unga HEMIS ID hamda tasodifiy parol berish")
     public ResponseEntity<ApiResponse<StudentProvisionDto>> provisionStudent(@Valid @RequestBody CreateStudentRequest request) {
         StudentProvisionDto dto = studentService.provisionStudent(request);
@@ -58,6 +62,7 @@ public class StudentController {
     }
 
     @PostMapping("/{id}/reset-password")
+    @PreAuthorize("hasAuthority('users.update') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
     @Operation(summary = "Mentor yoki Admin tomonidan o'quvchi parolini yangi tasodifiy parolga tiklash")
     public ResponseEntity<ApiResponse<ResetPasswordResultDto>> resetPassword(@PathVariable Long id) {
         ResetPasswordResultDto result = studentService.resetStudentPassword(id);
@@ -65,6 +70,7 @@ public class StudentController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('users.disable') or hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     @Operation(summary = "O'quvchini tizimdan o'chirish")
     public ResponseEntity<Void> deleteStudent(@PathVariable Long id) {
         studentService.deleteStudent(id);

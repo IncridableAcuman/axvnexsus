@@ -22,6 +22,8 @@ import uz.axm.nexus.scheduling.infrastructure.LessonSessionRepository;
 import uz.axm.nexus.users.domain.Student;
 import uz.axm.nexus.users.infrastructure.StudentRepository;
 
+import org.springframework.security.test.context.support.WithMockUser;
+
 import java.time.LocalDate;
 import java.util.List;
 
@@ -32,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@WithMockUser(username = "admin", roles = {"SUPER_ADMIN", "ADMIN"})
 class LessonAttendanceControllerTest {
 
     @Autowired

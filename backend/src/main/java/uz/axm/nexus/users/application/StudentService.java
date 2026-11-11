@@ -149,7 +149,11 @@ public class StudentService {
                 .enabled(true)
                 .emailVerified(true)
                 .build();
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        // 4.1 Link Student to User Authentication Record
+        savedStudent.setUser(savedUser);
+        studentRepository.save(savedStudent);
 
         // 5. Create GroupMembership if group is assigned
         if (studyGroup != null) {

@@ -51,6 +51,17 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("ERR_RATE_LIMIT_EXCEEDED", ex.getMessage()));
     }
 
+    @ExceptionHandler({
+            org.springframework.security.core.AuthenticationException.class,
+            org.springframework.security.authentication.AuthenticationCredentialsNotFoundException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(Exception ex) {
+        log.warn("Autentifikatsiya xatoligi: {}", ex.getMessage());
+        String msg = getLocalizedMessage("error.unauthorized", "Tizimga kirish talab etiladi. Token mavjud emas yoki eskirgan.");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error("ERR_UNAUTHORIZED", msg));
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
         log.warn("Ruxsat berilmadi: {}", ex.getMessage());

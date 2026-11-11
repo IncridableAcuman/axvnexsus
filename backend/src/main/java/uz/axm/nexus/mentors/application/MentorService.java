@@ -118,12 +118,17 @@ public class MentorService {
                 .enabled(true)
                 .emailVerified(true)
                 .build();
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        // 3.1 Link Mentor entity to User Authentication Record
+        savedMentor.setUser(savedUser);
+        mentorRepository.save(savedMentor);
 
         // 4. Create initial MentorProfile
         if (mentorProfileRepository.findByMentorId(savedMentor.getId()).isEmpty()) {
             mentorProfileRepository.save(MentorProfile.builder()
                     .mentor(savedMentor)
+                    .user(savedUser)
                     .displayName(fullName)
                     .headline(role + " | " + branchLocation)
                     .bio(request.getBio() != null ? request.getBio() : "Al-Xorazmiy Vorislari ta'lim loyihasi mentori")

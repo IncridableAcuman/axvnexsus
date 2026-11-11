@@ -147,7 +147,7 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
   const filteredSessions = useMemo(() => {
     return sessions.filter((s) => {
       const sessDate = getSessionDate(s);
-      let dateMatch = false;
+      let dateMatch: boolean;
 
       if (viewMode === 'day') {
         dateMatch =

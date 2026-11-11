@@ -12,6 +12,7 @@ import uz.axm.nexus.assessments.domain.Assessment;
 import uz.axm.nexus.assessments.domain.AssessmentQuestion;
 import uz.axm.nexus.assessments.domain.StudentAnswer;
 import uz.axm.nexus.assessments.domain.StudentAssessmentAttempt;
+import uz.axm.nexus.shared.application.ResourceOwnershipService;
 
 import java.util.List;
 import java.util.Map;
@@ -23,8 +24,10 @@ import java.util.Map;
 public class AssessmentController {
 
     private final AssessmentService assessmentService;
+    private final ResourceOwnershipService resourceOwnershipService;
 
     @GetMapping
+    @PreAuthorize("hasAuthority('assessments.read') or isAuthenticated()")
     @Operation(summary = "Barcha testlar va baholashlar ro'yxati")
     public ResponseEntity<List<Assessment>> getAllAssessments(
             @RequestParam(required = false) String subject,
@@ -35,6 +38,7 @@ public class AssessmentController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('assessments.read') or isAuthenticated()")
     @Operation(summary = "Test tafsilotlarini olish")
     public ResponseEntity<Assessment> getAssessmentById(@PathVariable Long id) {
         return ResponseEntity.ok(assessmentService.getAssessmentById(id));
@@ -48,6 +52,7 @@ public class AssessmentController {
     }
 
     @GetMapping("/{id}/take")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "O'quvchi uchun test savollari (Javob kalitlari yashirilgan!)")
     public ResponseEntity<List<AssessmentQuestion>> getQuestionsForTaking(@PathVariable Long id) {
         return ResponseEntity.ok(assessmentService.getQuestionsForStudentAttempt(id));
@@ -72,15 +77,18 @@ public class AssessmentController {
     }
 
     @PostMapping("/{id}/start")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "O'quvchi test urinishini boshlash")
     public ResponseEntity<StudentAssessmentAttempt> startAttempt(
             @PathVariable Long id,
             @RequestParam Long studentId
     ) {
+        resourceOwnershipService.verifyStudentAccess(studentId);
         return ResponseEntity.ok(assessmentService.startAttempt(id, studentId));
     }
 
     @PostMapping("/attempts/{attemptId}/submit")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Test javoblarini topshirish va avtomatik tekshirish")
     public ResponseEntity<StudentAssessmentAttempt> submitAttempt(
             @PathVariable Long attemptId,
@@ -103,20 +111,24 @@ public class AssessmentController {
     }
 
     @GetMapping("/attempts/{attemptId}")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Urinish natijasi")
     public ResponseEntity<StudentAssessmentAttempt> getAttempt(@PathVariable Long attemptId) {
         return ResponseEntity.ok(assessmentService.getAttemptById(attemptId));
     }
 
     @GetMapping("/attempts/{attemptId}/answers")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Urinishdagi o'quvchi javoblari")
     public ResponseEntity<List<StudentAnswer>> getAttemptAnswers(@PathVariable Long attemptId) {
         return ResponseEntity.ok(assessmentService.getAttemptAnswers(attemptId));
     }
 
     @GetMapping("/students/{studentId}/attempts")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "O'quvchining barcha test urinishlari tarixi")
     public ResponseEntity<List<StudentAssessmentAttempt>> getStudentAttempts(@PathVariable Long studentId) {
+        resourceOwnershipService.verifyStudentAccess(studentId);
         return ResponseEntity.ok(assessmentService.getStudentAttempts(studentId));
     }
 

@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import uz.axm.nexus.identity.application.ResetPasswordResultDto;
 import uz.axm.nexus.mentors.application.CreateMentorRequest;
@@ -25,18 +26,21 @@ public class MentorController {
     private final MentorService mentorService;
 
     @GetMapping
+    @PreAuthorize("hasAuthority('mentors.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'REGIONAL_COORDINATOR', 'COORDINATOR', 'MENTOR', 'OBSERVER')")
     @Operation(summary = "Barcha mentorlar ro'yxatini olish")
     public ResponseEntity<List<Mentor>> getAllMentors() {
         return ResponseEntity.ok(mentorService.getAllMentors());
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('mentors.manage') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN')")
     @Operation(summary = "Yangi mentor qo'shish yoki mavjudini yangilash")
     public ResponseEntity<Mentor> createMentor(@RequestBody Mentor mentor) {
         return ResponseEntity.ok(mentorService.save(mentor));
     }
 
     @PostMapping("/provision")
+    @PreAuthorize("hasAuthority('mentors.manage') or hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     @Operation(summary = "Admin tomonidan mentor yaratish va HEMIS ID raqami hamda tasodifiy parol berish")
     public ResponseEntity<ApiResponse<MentorProvisionDto>> provisionMentor(@Valid @RequestBody CreateMentorRequest request) {
         MentorProvisionDto dto = mentorService.provisionMentor(request);
@@ -45,6 +49,7 @@ public class MentorController {
     }
 
     @PostMapping("/{id}/reset-password")
+    @PreAuthorize("hasAuthority('mentors.manage') or hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     @Operation(summary = "Admin tomonidan mentor parolini yangi tasodifiy parolga tiklash")
     public ResponseEntity<ApiResponse<ResetPasswordResultDto>> resetPassword(@PathVariable Long id) {
         ResetPasswordResultDto result = mentorService.resetMentorPassword(id);

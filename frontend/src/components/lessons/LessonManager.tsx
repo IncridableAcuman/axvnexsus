@@ -43,6 +43,8 @@ import { lessonPlanApi } from '@/api';
 import type { LessonPlanDto, StudyGroup, Mentor } from '@/types';
 import { LessonQualityModal } from './LessonQualityModal';
 import { AiPresentationModal } from './AiPresentationModal';
+import { DEFAULT_LESSONS } from './defaultLessonsData';
+import { RichTextRenderer } from './RichTextRenderer';
 
 export interface LessonManagerProps {
   groups: StudyGroup[];
@@ -1156,9 +1158,9 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
                 </div>
                 <div className="rounded-3xl bg-card text-card-foreground shadow-[0_2px_14px_-2px_rgba(0,0,0,0.05)] dark:shadow-none p-6 space-y-4 border-0">
                   <h4 className="text-lg font-bold text-foreground">Nazariy Reja:</h4>
-                  <div className="text-sm text-secondary-foreground leading-relaxed whitespace-pre-wrap">
-                    {selectedLesson.theoryContent || (selectedLesson as any).theoreticalSection || 'Ushbu dars uchun maxsus nazariy ma’lumot kiritilmagan.'}
-                  </div>
+                  <RichTextRenderer
+                    content={selectedLesson.theoryContent || (selectedLesson as any).theoreticalSection || 'Ushbu dars uchun maxsus nazariy ma’lumot kiritilmagan.'}
+                  />
                 </div>
               </div>
             )}
@@ -1171,9 +1173,9 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
                 </div>
                 <div className="rounded-3xl bg-card text-card-foreground shadow-[0_2px_14px_-2px_rgba(0,0,0,0.05)] dark:shadow-none p-6 space-y-4 border-0">
                   <h4 className="text-lg font-bold text-foreground">Amaliy Ko‘rsatmalar:</h4>
-                  <div className="text-sm leading-relaxed whitespace-pre-wrap font-mono bg-slate-950 p-5 rounded-2xl text-emerald-400 shadow-inner">
-                    {selectedLesson.practicalContent || (selectedLesson as any).practicalSection || '// Amaliyot kodi yoki mashqlar'}
-                  </div>
+                  <RichTextRenderer
+                    content={selectedLesson.practicalContent || (selectedLesson as any).practicalSection || '// Amaliyot kodi yoki mashqlar'}
+                  />
                 </div>
               </div>
             )}
@@ -1186,9 +1188,9 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
                 </div>
                 <div className="rounded-3xl bg-card text-card-foreground shadow-[0_2px_14px_-2px_rgba(0,0,0,0.05)] dark:shadow-none p-6 space-y-4 border-0">
                   <h4 className="text-lg font-bold text-foreground">Mustaqil Mashqlar:</h4>
-                  <div className="text-sm text-secondary-foreground leading-relaxed whitespace-pre-wrap">
-                    {selectedLesson.exercises || 'Mashqlar ko‘rsatilmagan.'}
-                  </div>
+                  <RichTextRenderer
+                    content={selectedLesson.exercises || 'Mashqlar ko‘rsatilmagan.'}
+                  />
                 </div>
               </div>
             )}
@@ -1201,8 +1203,10 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
                 </div>
                 <div className="rounded-3xl bg-card text-card-foreground shadow-[0_2px_14px_-2px_rgba(0,0,0,0.05)] dark:shadow-none p-6 space-y-4 border-0">
                   <h4 className="text-lg font-bold text-foreground">Uyga vazifa:</h4>
-                  <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 leading-relaxed whitespace-pre-wrap p-4 bg-emerald-500/10 rounded-2xl">
-                    {selectedLesson.homework || 'Uy vazifasi kiritilmagan.'}
+                  <div className="p-4 bg-emerald-500/10 rounded-2xl">
+                    <RichTextRenderer
+                      content={selectedLesson.homework || 'Uy vazifasi kiritilmagan.'}
+                    />
                   </div>
                 </div>
               </div>
@@ -1216,14 +1220,14 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
       ======================================================== */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         {selectedLesson && (
-          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-card text-card-foreground border-0 rounded-3xl p-6 shadow-2xl">
+          <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto bg-card text-card-foreground border-0 rounded-3xl p-6 sm:p-8 shadow-2xl">
             <DialogHeader className="border-b border-border/15 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
                   <BookOpen className="w-5 h-5" />
                 </div>
                 <div>
-                  <DialogTitle className="text-base font-bold text-foreground">
+                  <DialogTitle className="text-base sm:text-lg font-bold text-foreground">
                     {selectedLesson.title}
                   </DialogTitle>
                   <DialogDescription className="text-xs text-muted-foreground">
@@ -1233,30 +1237,52 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
               </div>
             </DialogHeader>
 
-            <div className="space-y-3.5 text-xs sm:text-sm py-3">
-              <div>
-                <span className="font-bold text-foreground">Maqsad:</span>{' '}
-                <span className="text-muted-foreground">{selectedLesson.learningObjectives || 'N/A'}</span>
+            <div className="space-y-4 text-xs sm:text-sm py-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3.5 rounded-2xl bg-muted/40">
+                  <span className="font-bold text-foreground block mb-1">Maqsad:</span>
+                  <span className="text-muted-foreground leading-relaxed">{selectedLesson.learningObjectives || 'N/A'}</span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-muted/40">
+                  <span className="font-bold text-foreground block mb-1">Kutilayotgan natija:</span>
+                  <span className="text-muted-foreground leading-relaxed">{selectedLesson.expectedOutcomes || 'N/A'}</span>
+                </div>
               </div>
-              <div>
-                <span className="font-bold text-foreground">Kutilayotgan natija:</span>{' '}
-                <span className="text-muted-foreground">{selectedLesson.expectedOutcomes || 'N/A'}</span>
+
+              <div className="p-5 rounded-2xl bg-blue-500/5 dark:bg-blue-950/20 border border-blue-500/15">
+                <div className="font-bold text-sm text-blue-600 dark:text-blue-400 mb-2">
+                  1. Nazariya va Metodik Tushuncha (20 daq):
+                </div>
+                <RichTextRenderer
+                  content={selectedLesson.theoryContent || (selectedLesson as any).theoreticalSection || 'N/A'}
+                />
               </div>
-              <div className="p-4 rounded-2xl bg-muted/30">
-                <span className="font-bold text-blue-600 dark:text-blue-400">Nazariya:</span>
-                <p className="mt-1 text-muted-foreground leading-relaxed">
-                  {selectedLesson.theoryContent || (selectedLesson as any).theoreticalSection || 'N/A'}
-                </p>
+
+              <div className="p-5 rounded-2xl bg-indigo-500/5 dark:bg-indigo-950/20 border border-indigo-500/15">
+                <div className="font-bold text-sm text-indigo-600 dark:text-indigo-400 mb-2">
+                  2. Amaliyot & Live-Coding (25 daq):
+                </div>
+                <RichTextRenderer
+                  content={selectedLesson.practicalContent || (selectedLesson as any).practicalSection || 'N/A'}
+                />
               </div>
-              <div className="p-4 rounded-2xl bg-muted/30">
-                <span className="font-bold text-indigo-600 dark:text-indigo-400">Amaliyot:</span>
-                <p className="mt-1 font-mono text-xs text-muted-foreground leading-relaxed">
-                  {selectedLesson.practicalContent || (selectedLesson as any).practicalSection || 'N/A'}
-                </p>
+
+              <div className="p-5 rounded-2xl bg-purple-500/5 dark:bg-purple-950/20 border border-purple-500/15">
+                <div className="font-bold text-sm text-purple-600 dark:text-purple-400 mb-2">
+                  3. Mustaqil Mashqlar & Laboratoriya (25 daq):
+                </div>
+                <RichTextRenderer
+                  content={selectedLesson.exercises || 'N/A'}
+                />
               </div>
-              <div className="p-4 rounded-2xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                <span className="font-bold">Uyga vazifa:</span>
-                <p className="mt-1 leading-relaxed">{selectedLesson.homework || 'N/A'}</p>
+
+              <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-950 dark:text-emerald-200">
+                <div className="font-bold text-sm text-emerald-700 dark:text-emerald-400 mb-2">
+                  4. Uyga Vazifa & Portfolio (10 daq):
+                </div>
+                <RichTextRenderer
+                  content={selectedLesson.homework || 'N/A'}
+                />
               </div>
             </div>
 
@@ -1297,46 +1323,5 @@ export const LessonManager: React.FC<LessonManagerProps> = ({ groups, mentors })
 
 // Default initial lessons if no database records are present yet
 function getDefaultSampleLessons(): LessonPlanDto[] {
-  return [
-    {
-      id: 1,
-      title: 'HTML5 Semantik teglar va Formlar',
-      subject: 'Web Full-Stack Development',
-      gradeLevel: '8-sinf',
-      topic: 'Semantik HTML & Accessibility',
-      learningObjectives: 'Semantik elementlar (<header>, <nav>, <main>, <section>) orqali qulay va toza veb-sahifa tuzish',
-      expectedOutcomes: 'O‘quvchilar validatsiyali kirish va ro‘yxatdan o‘tish formalarini mustaqil kodlay oladilar',
-      requiredMaterials: 'VS Code, Chrome Browser',
-      theoryContent: 'SEO va Screen Readerlar uchun semantikaning ahamiyati. Form elementlari: input turlari, label va required atributlari.',
-      theoryDurationMinutes: 20,
-      practicalContent: 'Jonli kodlash: IT Park o‘quv markazi uchun zamonaviy ariza topshirish formasini yaratish.',
-      practicalDurationMinutes: 25,
-      exercises: '1. <article> va <aside> teglaridan foydalanib blog kartochkasini yarating.\n2. Telefon raqami uchun regex pattern qo‘shing.',
-      homework: 'Shaxsiy portfolio sahifangiz uchun to‘liq funksional aloqa (Contact Us) formasini yarating.',
-      durationMinutes: 80,
-      status: 'PUBLISHED',
-      isTemplate: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 2,
-      title: 'CSS Grid & Flexbox orqali Responsiv Maket',
-      subject: 'Web Full-Stack Development',
-      gradeLevel: '8-sinf',
-      topic: 'Zamonaviy CSS Layouts',
-      learningObjectives: 'Flexbox va CSS Grid imkoniyatlarini birgalikda qo‘llab, ixtiyoriy ekranga moslashuvchan dashboard yaratish',
-      expectedOutcomes: 'O‘quvchilar mobil, planshet va desktop ekranlarda mukammal moslashuvchi interfeys qura oladilar',
-      requiredMaterials: 'VS Code, CSS Grid Generator',
-      theoryContent: 'Grid template columns, repeat, minmax, auto-fit va auto-fill tushunchalari. Flexbox vs Grid farqlari.',
-      theoryDurationMinutes: 20,
-      practicalContent: 'IT xonalari jadvallari uchun responsiv haftalik grid kalendarini yasash.',
-      practicalDurationMinutes: 25,
-      exercises: '1. 3 ustunli mahsulotlar vitrinasini quring.\n2. Media querysiz auto-fit grid yarating.',
-      homework: 'GitHub repozitoriysiga o‘zingiz yaratgan responsiv sahifani push qiling va linkini yuboring.',
-      durationMinutes: 80,
-      status: 'DRAFT',
-      isTemplate: true,
-      createdAt: new Date().toISOString(),
-    },
-  ];
+  return DEFAULT_LESSONS;
 }

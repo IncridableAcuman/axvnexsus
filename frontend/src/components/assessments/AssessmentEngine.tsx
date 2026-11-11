@@ -38,6 +38,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/shared/ui/toast/ToastContext';
 import { useOptionalAuth } from '@/features/auth/AuthContext';
 import { assessmentApi, assignmentApi } from '@/api';
@@ -89,6 +90,34 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
   const [studentAnswers, setStudentAnswers] = useState<Record<number, string>>({});
   const [secondsRemaining, setSecondsRemaining] = useState(45 * 60);
   const [testResult, setTestResult] = useState<StudentAssessmentAttemptDto | null>(null);
+  const [detailedReviewItems, setDetailedReviewItems] = useState<{
+    question: AssessmentQuestionDto;
+    studentAnswerText: string;
+    correctAnswerText: string;
+    isCorrect: boolean;
+    pointsEarned: number;
+  }[]>([]);
+  const [latestAttempts, setLatestAttempts] = useState<Record<number, StudentAssessmentAttemptDto>>(() => {
+    try {
+      const saved = localStorage.getItem('axvhub_test_attempts');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const saveAttemptResult = (quizId: number, attempt: StudentAssessmentAttemptDto) => {
+    setLatestAttempts((prev) => {
+      const updated = { ...prev, [quizId]: attempt };
+      try {
+        localStorage.setItem('axvhub_test_attempts', JSON.stringify(updated));
+      } catch (err) {
+        // Ignore localStorage quota or private-browsing errors
+        void err;
+      }
+      return updated;
+    });
+  };
 
   // Homework Assignments State
   const [assignments, setAssignments] = useState<AssignmentDto[]>([]);
@@ -204,6 +233,11 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
         questions = getDefaultQuestionsForAssessment(assessment.title);
       }
 
+      const normalizedQuestions = questions.map((q, idx) => ({
+        ...q,
+        id: q.id ?? (idx + 1),
+      }));
+
       // Start attempt on backend
       let attemptId: number | null = null;
       if (typeof assessmentApi.startAttempt === 'function') {
@@ -219,45 +253,94 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
       setActiveAttemptId(attemptId);
       setSelectedAssessment(assessment);
-      setTestQuestions(questions);
+      setTestQuestions(normalizedQuestions);
       setCurrentQuestionIndex(0);
       setStudentAnswers({});
       setSecondsRemaining((assessment.durationMinutes || 30) * 60);
       setTestResult(null);
-      setShowReview(false);
+      setDetailedReviewItems([]);
+      setShowReview(true);
       setIsTestTaking(true);
       toast.info('Real test boshlandi', `${assessment.durationMinutes || 30} daqiqa vaqtingiz bor. Omad!`);
     } catch {
+      const sample = getDefaultSampleQuestions().map((q, idx) => ({
+        ...q,
+        id: q.id ?? (idx + 1),
+      }));
       setSelectedAssessment(assessment);
-      setTestQuestions(getDefaultSampleQuestions());
+      setTestQuestions(sample);
       setCurrentQuestionIndex(0);
       setStudentAnswers({});
       setSecondsRemaining(30 * 60);
       setTestResult(null);
-      setShowReview(false);
+      setDetailedReviewItems([]);
+      setShowReview(true);
       setIsTestTaking(true);
     }
   };
 
   const handleSubmitTest = async () => {
     let earned = 0;
+    let correctCount = 0;
     const max = testQuestions.reduce((acc, q) => acc + (q.points || 10), 0);
 
     const formattedAnswers: Record<number, string> = {};
+    const reviewData: {
+      question: AssessmentQuestionDto;
+      studentAnswerText: string;
+      correctAnswerText: string;
+      isCorrect: boolean;
+      pointsEarned: number;
+    }[] = [];
+
     testQuestions.forEach((q, idx) => {
-      const qKey = q.id || (idx + 1);
+      const qKey = q.id ?? (idx + 1);
       const ans = studentAnswers[qKey];
       if (ans !== undefined) {
         formattedAnswers[qKey] = ans;
       }
-      // Check correctness locally if correct answers are available
-      if (q.correctAnswersJson && q.correctAnswersJson.trim() === ans?.trim()) {
-        earned += (q.points || 10);
-      } else if (!q.correctAnswersJson) {
-        if (ans === '1' || ans === '2' || ans === '0' || ans === 'true') {
-          earned += (q.points || 10);
+
+      let opts: string[] = [];
+      try {
+        if (q.optionsJson) {
+          opts = JSON.parse(q.optionsJson);
         }
+      } catch {
+        opts = ['A', 'B', 'C', 'D'];
       }
+
+      let isCorrect = false;
+      if (q.correctAnswersJson !== undefined && q.correctAnswersJson !== null && q.correctAnswersJson.trim() !== '') {
+        isCorrect = q.correctAnswersJson.trim() === ans?.trim();
+      } else if (ans !== undefined) {
+        isCorrect = ans === '1' || ans === '2' || ans === '0' || ans === 'true';
+      }
+
+      const points = isCorrect ? (q.points || 10) : 0;
+      if (isCorrect) {
+        earned += points;
+        correctCount++;
+      }
+
+      let studentAnswerText = "Javob belgilanmagan";
+      if (ans !== undefined) {
+        const optIndex = parseInt(ans, 10);
+        studentAnswerText = opts[optIndex] !== undefined ? `${String.fromCharCode(65 + optIndex)}) ${opts[optIndex]}` : ans;
+      }
+
+      let correctAnswerText = "Noma'lum";
+      if (q.correctAnswersJson !== undefined && q.correctAnswersJson !== null && q.correctAnswersJson.trim() !== '') {
+        const correctIndex = parseInt(q.correctAnswersJson, 10);
+        correctAnswerText = opts[correctIndex] !== undefined ? `${String.fromCharCode(65 + correctIndex)}) ${opts[correctIndex]}` : q.correctAnswersJson;
+      }
+
+      reviewData.push({
+        question: q,
+        studentAnswerText,
+        correctAnswerText,
+        isCorrect,
+        pointsEarned: points,
+      });
     });
 
     let backendResult: StudentAssessmentAttemptDto | null = null;
@@ -274,12 +357,13 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
 
     const finalScore = backendResult?.totalScore ?? earned;
     const finalPct = backendResult?.percentage ?? Math.round((finalScore / (max || 1)) * 100);
+    const quizId = selectedAssessment?.id || 1;
 
-    setTestResult({
+    const resultRecord: StudentAssessmentAttemptDto = {
       id: backendResult?.id || Date.now(),
-      assessmentId: selectedAssessment?.id || 1,
+      assessmentId: quizId,
       studentId: activeStudentId,
-      attemptNumber: backendResult?.attemptNumber || 1,
+      attemptNumber: backendResult?.attemptNumber || (latestAttempts[quizId] ? 2 : 1),
       startedAt: backendResult?.startedAt || new Date().toISOString(),
       submittedAt: new Date().toISOString(),
       timeSpentSeconds: ((selectedAssessment?.durationMinutes || 30) * 60) - secondsRemaining,
@@ -289,16 +373,21 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
       status: 'EVALUATED',
       mentorFeedback:
         finalPct >= 90
-          ? 'Mukammal natija! Mavzu to‘liq va chuqur o‘zlashtirilgan.'
+          ? 'A‘lo natija! Ushbu mavzuni to‘liq va chuqur o‘zlashtirgansiz. Keyingi murakkab darajaga tavsiya etilasiz!'
           : finalPct >= 60
-          ? 'Yaxshi natija! Testdan muvaffaqiyatli o‘tdingiz.'
-          : 'Mavzuni qayta takrorlash tavsiya etiladi.',
-    });
+          ? 'Yaxshi natija! Testdan muvaffaqiyatli o‘tdingiz. Xatoliklar tahlilini ko‘rib chiqishni tavsiya qilamiz.'
+          : 'O‘tish baliga yetmadi. Dars metodikasi va konspektlarni qayta ko‘rib chiqib, qayta urinib ko‘ring.',
+    };
 
+    setTestResult(resultRecord);
+    setDetailedReviewItems(reviewData);
+    setShowReview(true);
     setIsTestTaking(false);
+    saveAttemptResult(quizId, resultRecord);
+
     toast.success(
       'Test topshirildi va baholandi!',
-      `Natijangiz: ${finalScore}/${max} (${finalPct}%). +${finalScore} XP berildi va kunlik streak yangilandi! 🔥`
+      `Natijangiz: ${finalScore}/${max} (${finalPct}%). To‘g‘ri javoblar: ${correctCount}/${testQuestions.length}. +${finalScore} XP berildi! 🔥`
     );
   };
 
@@ -863,22 +952,109 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                         <span>Urinish: <strong className="text-foreground">{quiz.maxAttempts || 2} ta</strong></span>
                       </div>
                     </div>
+
+                    {/* Latest Attempt Results Summary Banner */}
+                    {latestAttempts[quiz.id] && (
+                      <div className="p-3.5 rounded-2xl bg-purple-500/10 dark:bg-purple-950/20 border border-purple-500/20 my-3 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold flex items-center gap-1.5 text-foreground">
+                            <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                            So‘nggi natijangiz:
+                          </span>
+                          <span
+                            className={cn(
+                              "font-black px-2.5 py-0.5 rounded-full text-xs font-mono",
+                              latestAttempts[quiz.id].percentage >= (quiz.passingScore || 60)
+                                ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                                : "bg-destructive/20 text-destructive"
+                            )}
+                          >
+                            {latestAttempts[quiz.id].percentage}% ({latestAttempts[quiz.id].totalScore}/{latestAttempts[quiz.id].maxPossibleScore} ball)
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-purple-500/10">
+                          <span className="flex items-center gap-1 font-medium">
+                            {latestAttempts[quiz.id].percentage >= (quiz.passingScore || 60) ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-semibold">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Muvaffaqiyatli topshirilgan
+                              </span>
+                            ) : (
+                              <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1 font-semibold">
+                                <XCircle className="w-3.5 h-3.5" /> O‘tish baliga yetmadi
+                              </span>
+                            )}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAssessment(quiz);
+                              const qList = getDefaultQuestionsForAssessment(quiz.title).map((q, idx) => ({
+                                ...q,
+                                id: q.id ?? (idx + 1),
+                              }));
+                              setTestQuestions(qList);
+                              setTestResult(latestAttempts[quiz.id]);
+                              setShowReview(true);
+                            }}
+                            className="text-primary hover:underline font-bold cursor-pointer flex items-center gap-0.5"
+                          >
+                            Natijani ko‘rish &rarr;
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="pt-4 mt-3 border-t border-border/10 flex items-center justify-between">
+                  <div className="pt-4 mt-3 border-t border-border/10 flex items-center justify-between gap-2">
                     <span className="text-[11px] text-muted-foreground font-medium">
                       O‘tish bali: <strong className="text-foreground">{quiz.passingScore || 60}%</strong>
                     </span>
 
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleStartTest(quiz)}
-                      className="cursor-pointer bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-xl border-0 shadow-sm transition-all"
-                    >
-                      <Play className="w-3.5 h-3.5 mr-1.5" />
-                      <span>Testni Boshlash</span>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {latestAttempts[quiz.id] && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedAssessment(quiz);
+                            const qList = getDefaultQuestionsForAssessment(quiz.title).map((q, idx) => ({
+                              ...q,
+                              id: q.id ?? (idx + 1),
+                            }));
+                            setTestQuestions(qList);
+                            setTestResult(latestAttempts[quiz.id]);
+                            setShowReview(true);
+                          }}
+                          className="rounded-xl text-xs bg-muted/40 hover:bg-muted font-bold border-0"
+                          title="Natijalar tahlili"
+                        >
+                          <FileQuestion className="w-3.5 h-3.5 mr-1 text-purple-500" />
+                          <span>Natija</span>
+                        </Button>
+                      )}
+
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleStartTest(quiz)}
+                        className="cursor-pointer bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold rounded-xl border-0 shadow-sm transition-all"
+                      >
+                        {latestAttempts[quiz.id] ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                            <span>Qayta topshirish</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3.5 h-3.5 mr-1.5" />
+                            <span>Testni Boshlash</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -1106,7 +1282,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                       }
 
                       return opts.map((opt, oIdx) => {
-                        const qId = testQuestions[currentQuestionIndex].id || currentQuestionIndex;
+                        const qId = testQuestions[currentQuestionIndex].id ?? (currentQuestionIndex + 1);
                         const isSelected = studentAnswers[qId] === String(oIdx);
 
                         return (
@@ -1156,7 +1332,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                   {/* Question number jump buttons */}
                   <div className="flex items-center gap-1.5 overflow-x-auto max-w-full p-1.5 bg-muted/40 rounded-xl border-0">
                     {testQuestions.map((_, idx) => {
-                      const isAnswered = studentAnswers[testQuestions[idx].id || idx] !== undefined;
+                      const isAnswered = studentAnswers[testQuestions[idx].id ?? (idx + 1)] !== undefined;
                       const isCurrent = currentQuestionIndex === idx;
 
                       return (
@@ -1209,42 +1385,76 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
           8. TEST RESULT MODAL (Borderless, Modern Dialog)
       ======================================================== */}
       <Dialog open={!!testResult} onOpenChange={(open) => !open && setTestResult(null)}>
-        <DialogContent className="sm:max-w-md text-center border-0 rounded-2xl shadow-2xl bg-card p-6 sm:p-8">
-          <DialogHeader className="space-y-3">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto border-0 rounded-3xl shadow-2xl bg-card p-6 sm:p-8">
+          <DialogHeader className="space-y-3 text-center">
             <div
               className={`w-16 h-16 rounded-2xl mx-auto flex items-center justify-center border-0 ${
-                (testResult?.percentage || 0) >= 60
+                (testResult?.percentage || 0) >= (selectedAssessment?.passingScore || 60)
                   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                   : 'bg-destructive/10 text-destructive'
               }`}
             >
-              {(testResult?.percentage || 0) >= 60 ? (
+              {(testResult?.percentage || 0) >= (selectedAssessment?.passingScore || 60) ? (
                 <CheckCircle2 className="w-8 h-8" />
               ) : (
                 <XCircle className="w-8 h-8" />
               )}
             </div>
 
-            <DialogTitle className="text-xl font-bold">
-              {(testResult?.percentage || 0) >= 60
-                ? 'Tabriklaymiz! Testdan o‘tdingiz'
-                : 'Qayta urinib ko‘ring'}
+            <DialogTitle className="text-xl sm:text-2xl font-black">
+              {(testResult?.percentage || 0) >= (selectedAssessment?.passingScore || 60)
+                ? 'Tabriklaymiz! Testdan Muvaffaqiyatli O‘tdingiz'
+                : 'Test Natijasi: O‘tish Baliga Yetmadi'}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Sizning javoblaringiz server-side tahlil qilinib baholandi.
+              {selectedAssessment?.title} • {selectedAssessment?.gradeLevel} • Ob’ektiv tekshiruv natijalari
             </DialogDescription>
           </DialogHeader>
 
           {testResult && (
-            <div className="space-y-4 py-2">
-              <div className="p-5 rounded-2xl bg-muted/40 border-0 space-y-2">
-                <div className="text-4xl font-black text-purple-600 dark:text-purple-400 font-mono">
-                  {testResult.percentage}%
+            <div className="space-y-5 py-2">
+              {/* 4 Stat Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                <div className="p-3.5 rounded-2xl bg-muted/40 border-0">
+                  <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Ball</div>
+                  <div className="text-xl font-black text-foreground mt-0.5 font-mono">
+                    {testResult.totalScore} / {testResult.maxPossibleScore}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">Umumiy ball</span>
                 </div>
-                <Progress value={testResult.percentage} className="h-2 rounded-full" />
-                <div className="text-xs text-muted-foreground font-medium pt-1">
-                  To‘plangan ball: <span className="font-bold text-foreground">{testResult.totalScore}</span> / {testResult.maxPossibleScore}
+
+                <div className="p-3.5 rounded-2xl bg-purple-500/10 border-0">
+                  <div className="text-[10px] uppercase font-bold text-purple-600 dark:text-purple-400 tracking-wider">O‘zlashtirish</div>
+                  <div className="text-xl font-black text-purple-600 dark:text-purple-400 mt-0.5 font-mono">
+                    {testResult.percentage}%
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">O‘tish: {selectedAssessment?.passingScore || 60}%</span>
                 </div>
+
+                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border-0">
+                  <div className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">To‘g‘ri</div>
+                  <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono">
+                    {detailedReviewItems.length > 0 ? detailedReviewItems.filter(r => r.isCorrect).length : Math.round(testResult.percentage / 10)} ta
+                  </div>
+                  <span className="text-[10px] text-emerald-600/80">To‘liq yechilgan</span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-rose-500/10 border-0">
+                  <div className="text-[10px] uppercase font-bold text-rose-600 dark:text-rose-400 tracking-wider">Xato / Bo‘sh</div>
+                  <div className="text-xl font-black text-rose-600 dark:text-rose-400 mt-0.5 font-mono">
+                    {detailedReviewItems.length > 0 ? detailedReviewItems.filter(r => !r.isCorrect).length : Math.max(0, testQuestions.length - Math.round(testResult.percentage / 10))} ta
+                  </div>
+                  <span className="text-[10px] text-rose-600/80">Qayta ko‘rish</span>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <span className="text-muted-foreground">O‘zlashtirish darajasi:</span>
+                  <span className="font-bold text-foreground">{testResult.percentage}%</span>
+                </div>
+                <Progress value={testResult.percentage} className="h-2.5 rounded-full" />
               </div>
 
               {/* Gamification Rewards Banner */}
@@ -1254,14 +1464,14 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                     <Zap className="w-3.5 h-3.5 fill-current" />
                     <span>+{testResult.totalScore} XP berildi</span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground block">Reytingingiz ko‘tarildi</span>
+                  <span className="text-[10px] text-muted-foreground block">Platforma reytingingiz ko‘tarildi</span>
                 </div>
                 <div className="p-3 rounded-2xl bg-orange-500/10 border-0">
                   <div className="flex items-center gap-1.5 text-xs font-black text-orange-600 dark:text-orange-400">
                     <Flame className="w-3.5 h-3.5 fill-current" />
                     <span>Kunlik Streak 🔥</span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground block">Intizom saqlandi</span>
+                  <span className="text-[10px] text-muted-foreground block">Muntazam intizom saqlandi</span>
                 </div>
               </div>
 
@@ -1273,62 +1483,126 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
               )}
 
               {testResult.mentorFeedback && (
-                <div className="p-3.5 rounded-xl bg-muted/30 border-0 text-xs text-muted-foreground italic leading-relaxed">
+                <div className="p-4 rounded-2xl bg-muted/40 border-0 text-xs text-foreground/90 italic leading-relaxed text-left">
+                  <div className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-1.5 not-italic">
+                    <span>🎙️ Mentor Xulosasi va Pedagogik Tavsiya:</span>
+                  </div>
                   &ldquo;{testResult.mentorFeedback}&rdquo;
                 </div>
               )}
 
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="w-full text-xs font-bold rounded-xl border border-border/40 hover:bg-muted"
-                onClick={() => setShowReview(!showReview)}
-              >
-                {showReview ? 'Tahlilni yopish' : 'Savollar va Tushuntirishlar Tahlili'}
-              </Button>
+              {/* Savollar va Javoblar Tahlili */}
+              <div className="pt-2">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <FileQuestion className="w-4 h-4 text-purple-600" />
+                    Savollar va Tanlangan Javoblar Tahlili
+                  </h4>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-8 rounded-xl font-semibold border-0"
+                    onClick={() => setShowReview(!showReview)}
+                  >
+                    {showReview ? 'Yashirish' : 'Barchasini ko‘rsatish'}
+                  </Button>
+                </div>
 
-              {showReview && (
-                <div className="max-h-60 overflow-y-auto space-y-2 text-left pt-1">
-                  {testQuestions.map((q, idx) => {
-                    const qKey = q.id || (idx + 1);
-                    const studentAns = studentAnswers[qKey];
-                    let isCorrect = true;
-                    if (q.correctAnswersJson) {
-                      isCorrect = q.correctAnswersJson.trim() === studentAns?.trim();
-                    }
-                    return (
-                      <div key={idx} className="p-3 rounded-2xl bg-muted/40 border-0 space-y-1 text-xs">
+                {showReview && (
+                  <div className="space-y-3 max-h-72 overflow-y-auto text-left pr-1">
+                    {(detailedReviewItems.length > 0 ? detailedReviewItems : testQuestions.map((q, idx) => {
+                      const qKey = q.id ?? (idx + 1);
+                      const ans = studentAnswers[qKey];
+                      const isCorrect = q.correctAnswersJson?.trim() === ans?.trim();
+                      return {
+                        question: q,
+                        studentAnswerText: ans !== undefined ? `Tanlangan: ${ans}` : "Belgilanmagan",
+                        correctAnswerText: q.correctAnswersJson || "1",
+                        isCorrect,
+                        pointsEarned: isCorrect ? (q.points || 10) : 0,
+                      };
+                    })).map((item, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "p-4 rounded-2xl border transition-all text-xs space-y-2",
+                          item.isCorrect
+                            ? "bg-emerald-500/5 border-emerald-500/20 text-foreground"
+                            : "bg-rose-500/5 border-rose-500/20 text-foreground"
+                        )}
+                      >
                         <div className="flex items-start justify-between gap-2">
-                          <strong className="text-foreground">{idx + 1}. {q.questionText}</strong>
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${isCorrect ? 'bg-emerald-500/20 text-emerald-600' : 'bg-rose-500/20 text-rose-600'}`}>
-                            {isCorrect ? 'To‘g‘ri' : 'Xato'}
+                          <span className="font-bold text-foreground text-sm leading-snug">
+                            {idx + 1}. {item.question.questionText}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-[10px] font-black px-2.5 py-1 rounded-full shrink-0 flex items-center gap-1",
+                              item.isCorrect
+                                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                : "bg-rose-500/15 text-rose-600 dark:text-rose-400"
+                            )}
+                          >
+                            {item.isCorrect ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                            {item.isCorrect ? `+${item.pointsEarned} ball` : '0 ball'}
                           </span>
                         </div>
-                        {q.explanation && (
-                          <p className="text-[11px] text-muted-foreground pt-1 border-t border-border/10">
-                            💡 <strong>Izoh:</strong> {q.explanation}
-                          </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
+                          <div className={cn(
+                            "p-2 rounded-xl",
+                            item.isCorrect ? "bg-emerald-500/10 text-emerald-900 dark:text-emerald-200" : "bg-rose-500/10 text-rose-900 dark:text-rose-200"
+                          )}>
+                            <span className="font-bold block text-[10px] opacity-75">Sizning javobingiz:</span>
+                            <span>{item.studentAnswerText}</span>
+                          </div>
+
+                          {!item.isCorrect && (
+                            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-900 dark:text-emerald-200">
+                              <span className="font-bold block text-[10px] opacity-75">To‘g‘ri javob:</span>
+                              <span className="font-semibold">{item.correctAnswerText}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {item.question.explanation && (
+                          <div className="p-2.5 rounded-xl bg-muted/40 text-[11px] text-muted-foreground flex items-start gap-1.5 mt-1 border-0">
+                            <span className="text-amber-500 font-bold shrink-0">💡 Izoh:</span>
+                            <span className="leading-relaxed">{item.question.explanation}</span>
+                          </div>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          <DialogFooter className="sm:justify-center pt-2">
+          <DialogFooter className="sm:justify-between pt-4 border-t border-border/15 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl border-0 bg-muted/60 hover:bg-muted font-semibold"
+              onClick={() => {
+                if (selectedAssessment) {
+                  handleStartTest(selectedAssessment);
+                }
+              }}
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Qayta topshirish
+            </Button>
             <Button
               variant="default"
               size="md"
-              className="w-full cursor-pointer font-semibold rounded-xl border-0 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-md"
+              className="cursor-pointer font-bold rounded-xl border-0 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-md px-6"
               onClick={() => {
                 setTestResult(null);
                 setShowReview(false);
               }}
             >
-              Tushundim
+              Natijani yopish
             </Button>
           </DialogFooter>
         </DialogContent>

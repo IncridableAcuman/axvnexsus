@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -69,6 +70,7 @@ public class HemisProvisioningAndCaptchaTest {
     }
 
     @Test
+    @WithMockUser(username = "admin", roles = {"SUPER_ADMIN", "ADMIN"})
     @DisplayName("Admin tomonidan mentor yaratilishi, HEMIS ID va tasodifiy parol berilishi hamda login qilish tekshiriladi")
     void shouldProvisionMentorAndLoginSuccessfully() throws Exception {
         CreateMentorRequest req = CreateMentorRequest.builder()
@@ -109,6 +111,7 @@ public class HemisProvisioningAndCaptchaTest {
     }
 
     @Test
+    @WithMockUser(username = "mentor", roles = {"MENTOR"})
     @DisplayName("Mentor tomonidan o'quvchi qo'shilishi, HEMIS student ID va tasodifiy parol berilishi hamda login tekshiriladi")
     void shouldProvisionStudentAndLoginSuccessfully() throws Exception {
         CreateStudentRequest req = CreateStudentRequest.builder()

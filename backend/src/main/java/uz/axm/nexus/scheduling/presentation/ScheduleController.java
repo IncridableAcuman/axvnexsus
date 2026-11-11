@@ -21,6 +21,7 @@ public class ScheduleController {
     private final ScheduleService scheduleService;
 
     @GetMapping
+    @PreAuthorize("hasAuthority('lessons.read') or isAuthenticated()")
     @Operation(summary = "Dars jadvallarini olish (sinf va mentor bo'yicha filter bilan)")
     public ResponseEntity<List<Schedule>> getSchedules(
             @RequestParam(required = false) String gradeLevel,
