@@ -208,20 +208,121 @@ body {
   }
 }
 
-/* Custom restrained scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ========================================================
+   REFINED SCROLLBAR & SCROLLABLE CONTAINER BORDER SYSTEM
+   ======================================================== */
+
+/* Firefox & Standard CSS scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
+
+/* Webkit Scrollbars (Chrome, Safari, Edge, Opera) */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
 ::-webkit-scrollbar-track {
   background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
   border-radius: 9999px;
 }
+
+/* Floating pill scrollbar thumb with transparent border spacer */
+::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+  /* 2px transparent border creates a floating pill effect away from the container edge */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+  background-color: rgba(100, 116, 139, 0.7);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--brand-primary);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Dark mode scrollbar tuning */
+:is(.dark, [data-theme='dark']) * {
+  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+}
+
+:is(.dark, [data-theme='dark']) ::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.28);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+:is(.dark, [data-theme='dark']) ::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.55);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+:is(.dark, [data-theme='dark']) ::-webkit-scrollbar-thumb:active {
+  background-color: var(--brand-primary);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Scroll utility classes */
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar,
+.scrollbar-none {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Subtle border indicator for scrollable containers */
+.scroll-container-bordered {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  background-color: var(--bg-surface);
+  overflow: auto;
+  scrollbar-gutter: stable;
+  transition: border-color 0.2s ease;
+}
+
+.scroll-container-bordered:hover {
+  border-color: var(--border-strong);
+}
+
+/* Ultra-thin variant for dense widgets, dropdowns & code blocks */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Scroll area with inner border divider styling */
+.scroll-divider-y {
+  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
 }
 
 /* Dark mode compatibility rules for cards, surfaces, borders, and text */
