@@ -13,18 +13,20 @@ import uz.axm.nexus.assessments.domain.AssessmentQuestion;
 import uz.axm.nexus.assessments.domain.StudentAnswer;
 import uz.axm.nexus.assessments.domain.StudentAssessmentAttempt;
 import uz.axm.nexus.shared.application.ResourceOwnershipService;
+import uz.axm.nexus.shared.infrastructure.CurrentUserHelper;
 
 import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/assessments")
+@RequestMapping({"/api/assessments", "/api/v1/assessments"})
 @RequiredArgsConstructor
 @Tag(name = "Assessments & Quizzes", description = "Modul 10: Testlar, viktorinalar, avto-baholash va mustaqil mashqlar")
 public class AssessmentController {
 
     private final AssessmentService assessmentService;
     private final ResourceOwnershipService resourceOwnershipService;
+    private final CurrentUserHelper currentUserHelper;
 
     @GetMapping
     @PreAuthorize("hasAuthority('assessments.read') or isAuthenticated()")
@@ -81,10 +83,15 @@ public class AssessmentController {
     @Operation(summary = "O'quvchi test urinishini boshlash")
     public ResponseEntity<StudentAssessmentAttempt> startAttempt(
             @PathVariable Long id,
-            @RequestParam Long studentId
+            @RequestParam(required = false) Long studentId
     ) {
-        resourceOwnershipService.verifyStudentAccess(studentId);
-        return ResponseEntity.ok(assessmentService.startAttempt(id, studentId));
+        Long targetStudentId = studentId;
+        if (targetStudentId == null || currentUserHelper.isStudent()) {
+            targetStudentId = resourceOwnershipService.requireCurrentStudent().getId();
+        } else {
+            resourceOwnershipService.verifyStudentAccess(targetStudentId);
+        }
+        return ResponseEntity.ok(assessmentService.startAttempt(id, targetStudentId));
     }
 
     @PostMapping("/attempts/{attemptId}/submit")
@@ -94,6 +101,8 @@ public class AssessmentController {
             @PathVariable Long attemptId,
             @RequestBody Map<Long, String> answers
     ) {
+        StudentAssessmentAttempt attempt = assessmentService.getAttemptById(attemptId);
+        resourceOwnershipService.verifyStudentAccess(attempt.getStudentId());
         return ResponseEntity.ok(assessmentService.submitAttempt(attemptId, answers));
     }
 
@@ -114,14 +123,26 @@ public class AssessmentController {
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Urinish natijasi")
     public ResponseEntity<StudentAssessmentAttempt> getAttempt(@PathVariable Long attemptId) {
-        return ResponseEntity.ok(assessmentService.getAttemptById(attemptId));
+        StudentAssessmentAttempt attempt = assessmentService.getAttemptById(attemptId);
+        resourceOwnershipService.verifyStudentAccess(attempt.getStudentId());
+        return ResponseEntity.ok(attempt);
     }
 
     @GetMapping("/attempts/{attemptId}/answers")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Urinishdagi o'quvchi javoblari")
     public ResponseEntity<List<StudentAnswer>> getAttemptAnswers(@PathVariable Long attemptId) {
+        StudentAssessmentAttempt attempt = assessmentService.getAttemptById(attemptId);
+        resourceOwnershipService.verifyStudentAccess(attempt.getStudentId());
         return ResponseEntity.ok(assessmentService.getAttemptAnswers(attemptId));
+    }
+
+    @GetMapping("/my-attempts")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Joriy o'quvchining barcha test urinishlari tarixi")
+    public ResponseEntity<List<StudentAssessmentAttempt>> getMyAttempts() {
+        Long currentStudentId = resourceOwnershipService.requireCurrentStudent().getId();
+        return ResponseEntity.ok(assessmentService.getStudentAttempts(currentStudentId));
     }
 
     @GetMapping("/students/{studentId}/attempts")

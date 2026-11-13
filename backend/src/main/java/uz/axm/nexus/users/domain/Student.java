@@ -3,6 +3,7 @@ package uz.axm.nexus.users.domain;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
+import uz.axm.nexus.branches.domain.Branch;
 import uz.axm.nexus.classrooms.domain.StudyGroup;
 import uz.axm.nexus.mentors.domain.Mentor;
 import uz.axm.nexus.shared.domain.BaseEntity;
@@ -33,6 +34,10 @@ public class Student extends BaseEntity {
     private String gradeLevel; // "8-sinf", "11-sinf"
 
     private String branchLocation; // "IT Park Yangiariq"
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
 
     private String phone;
 

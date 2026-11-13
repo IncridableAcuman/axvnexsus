@@ -1,6 +1,7 @@
 import React from 'react'
 import type { StudyGroup, Student } from '../../types'
 import { useTranslation } from '@/shared/i18n'
+import { useMentorDashboard } from '@/features/analytics'
 import {
   Calendar,
   Users,
@@ -25,13 +26,24 @@ export interface MentorDashboardViewProps {
 }
 
 export const MentorDashboardView: React.FC<MentorDashboardViewProps> = ({
-  currentDateFormatted,
-  userFullName,
-  groups,
-  students,
-  onNavigateTab,
+  currentDateFormatted = '',
+  userFullName = '',
+  groups = [],
+  students = [],
+  onNavigateTab = () => {},
 }) => {
   const { t } = useTranslation()
+  const { data: mentorData } = useMentorDashboard()
+
+  const assignedGroupsCount = mentorData?.assignedGroupsCount ?? (groups?.length ?? 0)
+  const assignedStudentsCount = mentorData?.assignedStudentsCount ?? (students?.length ?? 0)
+  const todayLessonsCount = mentorData?.todayLessonsCount ?? (groups?.length ?? 0)
+  const todayAttendanceRate = mentorData?.todayAttendanceRate ?? 0
+  const pendingCount = mentorData?.pendingGradingCount ?? (mentorData?.pendingReviews?.length ?? 0)
+  const nextLesson = mentorData?.nextLesson
+  const todayLessons = mentorData?.todayLessons && mentorData.todayLessons.length > 0
+    ? mentorData.todayLessons
+    : []
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -91,16 +103,24 @@ export const MentorDashboardView: React.FC<MentorDashboardViewProps> = ({
               <Clock className="w-3 h-3" />
               <span>{t('dashboard.mentor.nextLesson')}</span>
             </div>
-            <div className="text-xl sm:text-2xl font-black text-white font-mono">
-              YA-24I1105 · IT
-            </div>
-            <p className="text-[11px] text-slate-300 mt-1 font-semibold">
-              11-sinf • 16:30 • Xona: IT-2
-            </p>
-            <div className="mt-3 pt-2.5 flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{t('dashboard.mentor.materialsReady')}</span>
-            </div>
+            {nextLesson ? (
+              <>
+                <div className="text-xl sm:text-2xl font-black text-white font-mono">
+                  {nextLesson.groupCode} · {nextLesson.subject}
+                </div>
+                <p className="text-[11px] text-slate-300 mt-1 font-semibold">
+                  {nextLesson.gradeLevel} • {nextLesson.startTime} • Xona: {nextLesson.room || 'IT Lab'}
+                </p>
+                <div className="mt-3 pt-2.5 flex items-center justify-center gap-1.5 text-[10px] text-emerald-400 font-semibold">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{t('dashboard.mentor.materialsReady')}</span>
+                </div>
+              </>
+            ) : (
+              <div className="py-2 text-xs text-slate-300">
+                {t('dashboard.mentor.noTodayLessons')}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -116,11 +136,11 @@ export const MentorDashboardView: React.FC<MentorDashboardViewProps> = ({
               </div>
             </div>
             <div className="text-2xl font-black text-[var(--text-primary)] font-mono">
-              {groups.length > 0 ? groups.length : 2}
+              {todayLessonsCount}
             </div>
           </div>
           <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-2">
-            Haftasiga 9 soat dars
+            {todayLessonsCount > 0 ? `${todayLessonsCount * 80} daqiqa dars` : t('dashboard.mentor.noTodayLessons')}
           </p>
         </div>
 
@@ -133,11 +153,11 @@ export const MentorDashboardView: React.FC<MentorDashboardViewProps> = ({
               </div>
             </div>
             <div className="text-2xl font-black text-[var(--text-primary)] font-mono">
-              {groups.length > 0 ? groups.length : 2}
+              {assignedGroupsCount}
             </div>
           </div>
           <p className="text-[11px] text-[var(--text-muted)] mt-2">
-            {students.length > 0 ? `${students.length} ta o‘quvchi biriktirilgan` : '29 ta o‘quvchi biriktirilgan'}
+            {assignedStudentsCount} ta o‘quvchi biriktirilgan
           </p>
         </div>
 
@@ -150,7 +170,7 @@ export const MentorDashboardView: React.FC<MentorDashboardViewProps> = ({
               </div>
             </div>
             <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-              100%
+              {todayAttendanceRate}%
             </div>
           </div>
           <p className="text-[11px] text-[var(--text-muted)] mt-2">{t('dashboard.mentor.todayAttendanceDesc')}</p>
@@ -168,7 +188,7 @@ export const MentorDashboardView: React.FC<MentorDashboardViewProps> = ({
               </div>
             </div>
             <div className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">
-              0
+              {pendingCount}
             </div>
           </div>
           <p className="text-[11px] text-[var(--brand-primary)] font-semibold mt-2 flex items-center gap-1">
@@ -198,7 +218,55 @@ export const MentorDashboardView: React.FC<MentorDashboardViewProps> = ({
           </div>
 
           <div className="space-y-3">
-            {groups.length > 0 ? (
+            {todayLessons.length > 0 ? (
+              todayLessons.map((item, idx) => (
+                <div
+                  key={item.id || idx}
+                  className="p-4 rounded-2xl bg-muted/30 dark:bg-muted/15 border-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 font-mono font-bold text-xs">
+                      {idx + 1}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-background text-[var(--text-primary)]">
+                          {item.startTime} - {item.endTime}
+                        </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                          {item.groupCode} • {item.gradeLevel}
+                        </span>
+                        <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-indigo-500" />
+                          {item.room || 'IT Lab'} ({item.branchLocation || 'IT Park Yangiariq'})
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-xs sm:text-sm text-[var(--text-primary)]">
+                        {item.subject}
+                      </h4>
+                      <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                        {item.topic ? `Mavzu: ${item.topic} • ` : ''}O‘quvchilar: {item.studentCount || 0} ta
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => onNavigateTab('timetable')}
+                      className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold hover:bg-indigo-100 transition cursor-pointer"
+                    >
+                      {t('nav.timetable')}
+                    </button>
+                    <button
+                      onClick={() => onNavigateTab('lessons')}
+                      className="px-3 py-1.5 rounded-xl bg-[var(--brand-primary)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer"
+                    >
+                      {t('nav.lessons')}
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : groups.length > 0 ? (
               groups.map((item, idx) => (
                 <div
                   key={item.id || idx}
@@ -218,14 +286,14 @@ export const MentorDashboardView: React.FC<MentorDashboardViewProps> = ({
                         </span>
                         <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-1">
                           <MapPin className="w-3 h-3 text-indigo-500" />
-                          {item.room || 'IT-2'} ({item.branchLocation || 'IT Park Yangiariq'})
+                          {item.room || 'IT Lab'} ({item.branchLocation || 'IT Park Yangiariq'})
                         </span>
                       </div>
                       <h4 className="font-bold text-xs sm:text-sm text-[var(--text-primary)]">
                         {item.subject}
                       </h4>
                       <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                        Kunlar: {item.scheduleDays || 'Haftalik'} • O‘quvchilar: {item.studentCount || 15} ta
+                        Kunlar: {item.scheduleDays || 'Haftalik'} • O‘quvchilar: {item.studentCount || 0} ta
                       </p>
                     </div>
                   </div>
@@ -248,7 +316,7 @@ export const MentorDashboardView: React.FC<MentorDashboardViewProps> = ({
               ))
             ) : (
               <div className="py-6 text-center text-xs text-[var(--text-muted)]">
-                Darslar topilmadi
+                {t('dashboard.mentor.noTodayLessons')}
               </div>
             )}
           </div>
@@ -267,15 +335,21 @@ export const MentorDashboardView: React.FC<MentorDashboardViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
               <div className="p-2.5 rounded-xl bg-card border-0 shadow-2xs">
                 <span className="text-[10px] text-[var(--text-muted)] block">{t('dashboard.mentor.theoryMastery')}</span>
-                <span className="font-bold font-mono text-[var(--text-primary)]">92.6%</span>
+                <span className="font-bold font-mono text-[var(--text-primary)]">
+                  {mentorData?.theoryMasteryRate !== undefined ? `${mentorData.theoryMasteryRate}%` : '0%'}
+                </span>
               </div>
               <div className="p-2.5 rounded-xl bg-card border-0 shadow-2xs">
                 <span className="text-[10px] text-[var(--text-muted)] block">{t('dashboard.mentor.codingPractice')}</span>
-                <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">95.1%</span>
+                <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                  {mentorData?.codingPracticeRate !== undefined ? `${mentorData.codingPracticeRate}%` : '0%'}
+                </span>
               </div>
               <div className="p-2.5 rounded-xl bg-card border-0 shadow-2xs">
                 <span className="text-[10px] text-[var(--text-muted)] block">{t('dashboard.mentor.miniProject')}</span>
-                <span className="font-bold font-mono text-indigo-600 dark:text-indigo-400">89.4%</span>
+                <span className="font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                  {mentorData?.miniProjectRate !== undefined ? `${mentorData.miniProjectRate}%` : '0%'}
+                </span>
               </div>
             </div>
           </div>
@@ -290,51 +364,38 @@ export const MentorDashboardView: React.FC<MentorDashboardViewProps> = ({
                 <span>{t('dashboard.mentor.pendingReviews')}</span>
               </h3>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                {t('dashboard.mentor.newTasksCount', { count: 5 })}
+                {t('dashboard.mentor.newTasksCount', { count: pendingCount })}
               </span>
             </div>
 
             <div className="space-y-2.5">
-              {[
-                {
-                  student: 'Bobur Aliyev',
-                  title: 'Flexbox Layout mini-sayti',
-                  time: 'Bugun 11:30',
-                  group: 'W-801',
-                },
-                {
-                  student: 'Jasur Eshchanov',
-                  title: 'Binary Search & Recursion',
-                  time: 'Bugun 09:15',
-                  group: 'A-902',
-                },
-                {
-                  student: 'Shahlo Qodirova',
-                  title: 'CSS Grid Portfolio',
-                  time: 'Kecha 17:40',
-                  group: 'W-801',
-                },
-              ].map((sub, idx) => (
-                <div
-                  key={idx}
-                  className="p-2.5 rounded-xl bg-muted/30 dark:bg-muted/15 border-0 flex items-center justify-between text-xs"
-                >
-                  <div className="truncate pr-2">
-                    <strong className="text-[var(--text-primary)] block truncate">
-                      {sub.student}
-                    </strong>
-                    <span className="text-[10px] text-[var(--text-muted)] block truncate">
-                      {sub.title}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => onNavigateTab('assessments')}
-                    className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold text-[11px] shrink-0 hover:bg-amber-100 transition cursor-pointer"
+              {mentorData?.pendingReviews && mentorData.pendingReviews.length > 0 ? (
+                mentorData.pendingReviews.map((sub) => (
+                  <div
+                    key={sub.submissionId}
+                    className="p-2.5 rounded-xl bg-muted/30 dark:bg-muted/15 border-0 flex items-center justify-between text-xs"
                   >
-                    {t('dashboard.mentor.gradeBtn')}
-                  </button>
+                    <div className="truncate pr-2">
+                      <strong className="text-[var(--text-primary)] block truncate">
+                        {sub.studentName}
+                      </strong>
+                      <span className="text-[10px] text-[var(--text-muted)] block truncate">
+                        {sub.title} • {sub.groupCode}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => onNavigateTab('assessments')}
+                      className="px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold text-[11px] shrink-0 hover:bg-amber-100 transition cursor-pointer"
+                    >
+                      {t('dashboard.mentor.gradeBtn')}
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="py-4 text-center text-xs text-[var(--text-muted)]">
+                  {t('dashboard.mentor.noPendingReviews')}
                 </div>
-              ))}
+              )}
             </div>
 
             <div className="mt-3 pt-3 border-t border-border/15">

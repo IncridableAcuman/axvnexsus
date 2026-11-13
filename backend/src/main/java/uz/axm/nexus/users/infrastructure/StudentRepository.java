@@ -15,6 +15,10 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     default List<Student> findByGroupId(Long groupId) {
         return findByStudyGroupId(groupId);
     }
+    List<Student> findByBranchId(Long branchId);
+    long countByBranchId(Long branchId);
+    long countByBranchIdAndStatus(Long branchId, String status);
+
     Optional<Student> findByPinfl(String pinfl);
     Optional<Student> findByStudentIdNumber(String studentIdNumber);
     Optional<Student> findByUserId(Long userId);

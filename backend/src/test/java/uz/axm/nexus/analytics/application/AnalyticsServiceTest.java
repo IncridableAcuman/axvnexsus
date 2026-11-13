@@ -76,6 +76,12 @@ class AnalyticsServiceTest {
     private AcademicPeriodRepository academicPeriodRepository;
     @Mock
     private AnalyticsAuthorizationService authorizationService;
+    @Mock
+    private uz.axm.nexus.classrooms.infrastructure.RoomRepository roomRepository;
+    @Mock
+    private uz.axm.nexus.shared.application.ResourceOwnershipService resourceOwnershipService;
+    @Mock
+    private uz.axm.nexus.grading.application.GradingAndGamificationService gradingAndGamificationService;
 
     @InjectMocks
     private AnalyticsService analyticsService;

@@ -1,9 +1,8 @@
 package uz.axm.nexus.classrooms.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.*;
+import uz.axm.nexus.branches.domain.Branch;
 import uz.axm.nexus.shared.domain.BaseEntity;
 
 @Entity
@@ -19,6 +18,10 @@ public class Room extends BaseEntity {
     private String name; // e.g. "IT Lab 1"
 
     private String branchLocation; // e.g. "IT Park Yangiariq"
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
 
     private Integer capacity; // Masalan: 16 kompyuterli o'rin
 }

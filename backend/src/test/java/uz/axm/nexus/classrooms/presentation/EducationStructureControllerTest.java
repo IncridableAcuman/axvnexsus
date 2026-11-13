@@ -137,4 +137,40 @@ class EducationStructureControllerTest {
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message", containsString("Noto'g'ri sinf")));
     }
+
+    @Test
+    @DisplayName("O'quvchini guruhdan chiqarish va guruh ma'lumotlarini yangilash")
+    void shouldUnenrollStudentAndUpdateGroup() throws Exception {
+        StudyGroup group = studyGroupRepository.findAll().get(0);
+
+        Student student = studentRepository.save(Student.builder()
+                .fullName("Chiqariluvchi O'quvchi")
+                .gradeLevel("8-sinf")
+                .district("Yangiariq")
+                .status("Faol")
+                .build());
+
+        // Enroll first
+        mockMvc.perform(post("/api/groups/" + group.getId() + "/students")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new EnrollStudentRequest(student.getId()))))
+                .andExpect(status().isCreated());
+
+        // Unenroll
+        mockMvc.perform(delete("/api/groups/" + group.getId() + "/students/" + student.getId())
+                        .param("reason", "O'z arizasiga binoan"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("LEFT"));
+
+        // Update group
+        group.setSubject("Yangilangan Web Dasturlash");
+        group.setRoom("IT-3");
+        mockMvc.perform(put("/api/groups/" + group.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(group)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.subject").value("Yangilangan Web Dasturlash"));
+    }
 }

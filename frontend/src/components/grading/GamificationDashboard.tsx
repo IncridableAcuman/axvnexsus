@@ -14,6 +14,7 @@ import {
   Target,
   BarChart2,
   Activity,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   Card,
@@ -47,11 +48,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/shared/ui/toast/ToastContext';
 import { useOptionalAuth } from '@/features/auth/AuthContext';
+import { useCurrentStudent } from '@/features/auth/useCurrentStudent';
 import { gradingApi } from '@/api';
 import type {
   LeaderboardEntryDto,
   GroupLeaderboardEntryDto,
   StudentStreakDto,
+  StudentGamificationProfileDto,
   GamificationMetricsDto,
   Student,
 } from '@/types';
@@ -75,8 +78,13 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
   const [groupLeaderboard, setGroupLeaderboard] = useState<GroupLeaderboardEntryDto[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Active student for streak display and check-in
-  const activeStudentId = students[0]?.id || 1;
+  // Current Authenticated Student Context
+  const { studentId: currentStudentId, isLoading: loadingStudent, hasProfile } = useCurrentStudent();
+  const activeStudentId = auth?.isStudent
+    ? (currentStudentId ?? undefined)
+    : (currentStudentId ?? (!auth && students.length > 0 ? students[0]?.id : undefined));
+
+  const [studentProfile, setStudentProfile] = useState<StudentGamificationProfileDto | null>(null);
   const [studentStreak, setStudentStreak] = useState<StudentStreakDto | null>(null);
   const [checkingIn, setCheckingIn] = useState(false);
 
@@ -87,7 +95,7 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
 
   // Award Points Modal State
   const [isAwardModalOpen, setIsAwardModalOpen] = useState(false);
-  const [awardStudentId, setAwardStudentId] = useState<number>(students[0]?.id || 1);
+  const [awardStudentId, setAwardStudentId] = useState<number>(students[0]?.id ?? 0);
   const [awardAmount, setAwardAmount] = useState<number>(50);
   const [awardSource, setAwardSource] = useState('MENTOR_BONUS');
   const [awardReason, setAwardReason] = useState('');
@@ -96,37 +104,61 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
   const loadGamificationData = async () => {
     try {
       setLoading(true);
-      const streakPromise = typeof gradingApi.getStudentStreak === 'function'
-        ? gradingApi.getStudentStreak(activeStudentId)
-        : Promise.resolve({ data: getDefaultSampleStreak(activeStudentId) });
 
-      const [lbRes, grpRes, streakRes] = await Promise.allSettled([
+      const profilePromise = auth?.isStudent
+        ? (typeof gradingApi.getMyProfile === 'function' ? gradingApi.getMyProfile() : Promise.resolve({ data: null as any }))
+        : (activeStudentId && typeof gradingApi.getStudentProfile === 'function' ? gradingApi.getStudentProfile(activeStudentId) : Promise.resolve({ data: null as any }));
+
+      const streakPromise = auth?.isStudent
+        ? (typeof gradingApi.getMyStreak === 'function' ? gradingApi.getMyStreak() : Promise.resolve({ data: null as any }))
+        : (activeStudentId && typeof gradingApi.getStudentStreak === 'function' ? gradingApi.getStudentStreak(activeStudentId) : Promise.resolve({ data: null as any }));
+
+      const [lbRes, grpRes, streakRes, profileRes] = await Promise.allSettled([
         gradingApi.getLeaderboard(period),
         gradingApi.getGroupLeaderboard(),
         streakPromise,
+        profilePromise,
       ]);
 
       if (lbRes.status === 'fulfilled' && lbRes.value && lbRes.value.data && lbRes.value.data.length > 0) {
         setLeaderboard(lbRes.value.data);
-      } else {
+      } else if (!auth?.isStudent) {
         setLeaderboard(getDefaultSampleLeaderboard());
+      } else {
+        setLeaderboard([]);
       }
 
       if (grpRes.status === 'fulfilled' && grpRes.value && grpRes.value.data && grpRes.value.data.length > 0) {
         setGroupLeaderboard(grpRes.value.data);
-      } else {
+      } else if (!auth?.isStudent) {
         setGroupLeaderboard(getDefaultSampleGroupLeaderboard());
+      } else {
+        setGroupLeaderboard([]);
+      }
+
+      if (profileRes.status === 'fulfilled' && profileRes.value && profileRes.value.data) {
+        const prof = profileRes.value.data;
+        setStudentProfile(prof);
+        if (prof.streakDetails) {
+          setStudentStreak(prof.streakDetails);
+        }
+      } else {
+        setStudentProfile(null);
       }
 
       if (streakRes.status === 'fulfilled' && streakRes.value && streakRes.value.data) {
         setStudentStreak(streakRes.value.data);
-      } else {
-        setStudentStreak(getDefaultSampleStreak(activeStudentId));
+      } else if (!auth?.isStudent && !auth) {
+        setStudentStreak(getDefaultSampleStreak(activeStudentId || 1));
+      } else if (!studentProfile?.streakDetails) {
+        setStudentStreak(null);
       }
     } catch {
-      setLeaderboard(getDefaultSampleLeaderboard());
-      setGroupLeaderboard(getDefaultSampleGroupLeaderboard());
-      setStudentStreak(getDefaultSampleStreak(activeStudentId));
+      if (!auth?.isStudent && !auth) {
+        setLeaderboard(getDefaultSampleLeaderboard());
+        setGroupLeaderboard(getDefaultSampleGroupLeaderboard());
+        setStudentStreak(getDefaultSampleStreak(activeStudentId || 1));
+      }
     } finally {
       setLoading(false);
     }
@@ -134,7 +166,7 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
 
   useEffect(() => {
     loadGamificationData();
-  }, [period]);
+  }, [period, currentStudentId]);
 
   const loadMetricsData = async () => {
     try {
@@ -176,11 +208,7 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
       }
 
       // Refresh streak and leaderboard
-      const streakRes = await gradingApi.getStudentStreak(activeStudentId);
-      if (streakRes.data) {
-        setStudentStreak(streakRes.data);
-      }
-      loadGamificationData();
+      await loadGamificationData();
     } catch (err: any) {
       toast.error('Xatolik', err.response?.data?.message || 'Streakni tasdiqlashda xatolik yuz berdi.');
     } finally {
@@ -204,7 +232,7 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
         pointSource: awardSource,
         idempotencyKey: idempKey,
         reason: awardReason,
-        awardedByUserId: 1,
+        awardedByUserId: auth?.user?.id,
       });
 
       toast.success('Ball taqdim etildi', `${awardAmount} XP muvaffaqiyatli hisoblandi`);
@@ -236,9 +264,11 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
   const totalPointsAwarded = leaderboard.reduce((acc, curr) => acc + (curr.totalPoints || 0), 0);
   const topStudent = leaderboard[0];
 
-  // Milestone calculation for streak progress
-  const currentStreakCount = studentStreak?.currentStreak ?? 5;
-  const nextMilestone = studentStreak?.nextMilestoneDays ?? 7;
+  // Milestone calculation for streak progress - strictly real data
+  const currentStreakCount = studentProfile?.currentStreak ?? (studentStreak?.currentStreak ?? (!auth ? 5 : 0));
+  const longestStreakCount = studentProfile?.longestStreak ?? (studentStreak?.longestStreak ?? (!auth ? 14 : 0));
+  const totalActiveDaysCount = studentProfile?.totalActiveDays ?? (studentStreak?.totalActiveDays ?? (!auth ? 24 : 0));
+  const nextMilestone = studentStreak?.nextMilestoneDays ?? (studentProfile?.streakDetails?.nextMilestoneDays ?? 7);
   const streakPercent = Math.min(100, Math.round((currentStreakCount / Math.max(1, nextMilestone)) * 100));
 
   return (
@@ -298,6 +328,22 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
         </div>
       </Card>
 
+      {auth?.isStudent && !loadingStudent && !hasProfile && (
+        <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-card-foreground">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h3 className="font-semibold text-sm text-foreground">
+                O‘quvchi profili topilmadi
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Tizimga kirgan hisobingizga (<strong>{auth.user?.username || auth.user?.email}</strong>) biriktirilgan o‘quvchi gamifikatsiya profili mavjud emas. Shaxsiy reyting, XP va nishonlar faollashtirilishi uchun koordinator bilan bog‘laning.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ========================================================
           2. INTERACTIVE DAILY STREAK & LEVEL PROGRESS BANNER
       ======================================================== */}
@@ -319,14 +365,14 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Shaxsiy rekord: <strong className="text-foreground">{studentStreak?.longestStreak ?? 14} kun</strong> • Jami faol kunlar: <strong className="text-foreground">{studentStreak?.totalActiveDays ?? 24} kun</strong>
+                  Shaxsiy rekord: <strong className="text-foreground">{longestStreakCount} kun</strong> • Jami faol kunlar: <strong className="text-foreground">{totalActiveDaysCount} kun</strong>
                 </p>
               </div>
             </div>
 
             {/* Daily Check-in Button */}
             <div>
-              {studentStreak?.checkedInToday ? (
+              {(studentStreak?.checkedInToday ?? studentProfile?.checkedInToday) ? (
                 <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Bugungi Streak Qayd Etilgan (+15 XP)</span>
@@ -415,32 +461,45 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
                   O‘yin Darajasi (Tier)
                 </span>
                 <h3 className="text-lg font-black text-foreground">
-                  Level 3: Active Dev
+                  {studentProfile
+                    ? `Level ${studentProfile.level}: ${studentProfile.levelName}`
+                    : (!auth ? 'Level 3: Active Dev' : 'Level 1: Boshlang‘ich (Novice)')}
                 </h3>
               </div>
             </div>
 
             <Badge className="border-0 bg-purple-500/15 text-purple-600 dark:text-purple-400 font-extrabold text-xs px-2.5 py-1 rounded-xl shadow-none">
-              Top 5%
+              {studentProfile?.rank ? `#${studentProfile.rank} O‘rinda` : (!auth ? 'Top 5%' : 'Faol')}
             </Badge>
           </div>
 
           <div className="p-4 rounded-2xl bg-muted/40 dark:bg-muted/20 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground font-semibold">Umumiy Tajriba (XP)</span>
-              <span className="font-black text-foreground">750 / 1000 XP</span>
+              <span className="font-black text-foreground">
+                {studentProfile
+                  ? `${studentProfile.totalPoints} / ${studentProfile.nextLevelXp} XP`
+                  : (!auth ? '750 / 1000 XP' : '0 / 100 XP')}
+              </span>
             </div>
-            <Progress value={75} className="h-2.5 rounded-full bg-muted" />
+            <Progress
+              value={studentProfile?.levelProgressPercent ?? (!auth ? 75 : 0)}
+              className="h-2.5 rounded-full bg-muted"
+            />
             <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
-              <span>Level 3 (500 XP)</span>
-              <span className="font-bold text-amber-500">250 XP qoldi (Level 4 gacha)</span>
+              <span>Level {studentProfile?.level ?? (!auth ? 3 : 1)} ({studentProfile?.currentLevelMinXp ?? (!auth ? 500 : 0)} XP)</span>
+              <span className="font-bold text-amber-500">
+                {studentProfile
+                  ? `${Math.max(0, (studentProfile.nextLevelXp ?? 100) - (studentProfile.totalPoints ?? 0))} XP qoldi (Level ${(studentProfile.level || 1) + 1} gacha)`
+                  : (!auth ? '250 XP qoldi (Level 4 gacha)' : '100 XP qoldi')}
+              </span>
             </div>
           </div>
 
           <div className="space-y-1.5 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <Star className="w-3.5 h-3.5 text-amber-500 fill-current" />
-              <span>Keyingi unvon: <strong>Senior Dasturchi (Master)</strong></span>
+              <span>Joriy maqom: <strong>{studentProfile?.levelName || (!auth ? 'Senior Dasturchi (Master)' : 'Boshlang‘ich')}</strong></span>
             </div>
             <div className="flex items-center gap-2">
               <Target className="w-3.5 h-3.5 text-blue-500" />

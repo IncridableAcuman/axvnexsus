@@ -64,7 +64,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ groups, 
 
   // Filters
   const [selectedGroupId, setSelectedGroupId] = useState<number>(groups[0]?.id || 10);
-  const [selectedStudentId, setSelectedStudentId] = useState<number>(students[0]?.id || 1);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | undefined>(students[0]?.id);
   const [dateRangePreset, setDateRangePreset] = useState<'7d' | '30d' | 'semester' | 'custom'>('30d');
   const [customFrom, setCustomFrom] = useState<string>('');
   const [customTo, setCustomTo] = useState<string>('');

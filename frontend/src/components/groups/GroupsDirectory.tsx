@@ -32,16 +32,19 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { groupStructureApi } from '@/api';
+import { groupStructureApi, branchApi } from '@/api';
 import { GroupDetailsModal } from './GroupDetailsModal';
 import { StudentEnrollmentModal } from './StudentEnrollmentModal';
 import { CreateGroupModal } from './CreateGroupModal';
-import type { StudyGroup, Mentor, Student } from '@/types';
+import { EditGroupModal } from './EditGroupModal';
+import { Edit2 } from 'lucide-react';
+import type { StudyGroup, Mentor, Student, BranchDto } from '@/types';
 
 interface GroupsDirectoryProps {
   initialGroups?: StudyGroup[];
   mentors: Mentor[];
   students: Student[];
+  branches?: BranchDto[];
   onRefreshParent?: () => void;
 }
 
@@ -49,14 +52,30 @@ export const GroupsDirectory: React.FC<GroupsDirectoryProps> = ({
   initialGroups = [],
   mentors,
   students,
+  branches: initialBranches = [],
   onRefreshParent,
 }) => {
+  const [branches, setBranches] = useState<BranchDto[]>(initialBranches);
   const [groups, setGroups] = useState<StudyGroup[]>(initialGroups);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedBranch, setSelectedBranch] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+  useEffect(() => {
+    if (branchApi && typeof branchApi.getAll === 'function') {
+      branchApi
+        .getAll()
+        .then((res) => {
+          if (res?.data?.data) {
+            setBranches(res.data.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
 
   // Modals
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
@@ -64,6 +83,7 @@ export const GroupsDirectory: React.FC<GroupsDirectoryProps> = ({
   const [isEnrollOpen, setIsEnrollOpen] = useState(false);
   const [enrollGroup, setEnrollGroup] = useState<StudyGroup | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<StudyGroup | null>(null);
 
   const loadGroups = async () => {
     try {
@@ -72,7 +92,8 @@ export const GroupsDirectory: React.FC<GroupsDirectoryProps> = ({
         selectedGrade === 'all' ? undefined : selectedGrade,
         undefined,
         selectedStatus === 'all' ? undefined : selectedStatus,
-        search || undefined
+        search || undefined,
+        selectedBranch === 'all' ? undefined : Number(selectedBranch)
       );
       setGroups(res.data);
     } catch (err) {
@@ -84,7 +105,7 @@ export const GroupsDirectory: React.FC<GroupsDirectoryProps> = ({
 
   useEffect(() => {
     loadGroups();
-  }, [selectedGrade, selectedStatus]);
+  }, [selectedGrade, selectedStatus, selectedBranch]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -268,6 +289,21 @@ export const GroupsDirectory: React.FC<GroupsDirectoryProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Branch filter */}
+            <select
+              value={selectedBranch}
+              onChange={(e) => setSelectedBranch(e.target.value)}
+              aria-label="Filial filtri"
+              className="text-xs h-9 rounded-xl bg-muted/40 border-0 px-3 py-1.5 text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary cursor-pointer font-medium"
+            >
+              <option value="all">Barcha filiallar</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+
             {/* Status filter */}
             <select
               value={selectedStatus}
@@ -402,9 +438,16 @@ export const GroupsDirectory: React.FC<GroupsDirectoryProps> = ({
                   <CardTitle className="text-base font-bold text-foreground group-hover:text-primary transition-colors mb-1 line-clamp-1">
                     {group.name || group.groupCode}
                   </CardTitle>
-                  <div className="flex items-center text-xs text-muted-foreground mb-3 space-x-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span>{group.roomLocation || group.room || 'Xona belgilanmagan'}</span>
+                  <div className="flex items-center text-xs text-muted-foreground mb-3 space-x-1.5 flex-wrap gap-y-1">
+                    <div className="flex items-center space-x-1">
+                      <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                      <span>{group.roomLocation || group.room || 'Xona belgilanmagan'}</span>
+                    </div>
+                    {(group.branch?.name || group.branchLocation) && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground font-medium">
+                        {group.branch?.name || group.branchLocation}
+                      </span>
+                    )}
                   </div>
 
                   {/* Mentor Info (Soft background, no border) */}
@@ -480,6 +523,19 @@ export const GroupsDirectory: React.FC<GroupsDirectoryProps> = ({
                   </Button>
 
                   <div className="flex items-center space-x-1.5">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingGroup(group);
+                      }}
+                      className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground border-0"
+                      title="Guruhni tahrirlash"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </Button>
+
                     <Button
                       variant="ghost"
                       size="icon"
@@ -613,6 +669,18 @@ export const GroupsDirectory: React.FC<GroupsDirectoryProps> = ({
                         <Button
                           variant="ghost"
                           size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingGroup(group);
+                          }}
+                          className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground border-0"
+                          title="Tahrirlash"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={(e) => handleToggleStatus(group, e)}
                           className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground border-0"
                           title={group.status === 'ACTIVE' ? 'Arxivlash' : 'Faollashtirish'}
@@ -674,11 +742,26 @@ export const GroupsDirectory: React.FC<GroupsDirectoryProps> = ({
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         mentors={mentors}
+        branches={branches}
         onSuccess={() => {
           loadGroups();
           onRefreshParent?.();
         }}
       />
+
+      {editingGroup && (
+        <EditGroupModal
+          isOpen={!!editingGroup}
+          group={editingGroup}
+          mentors={mentors}
+          branches={branches}
+          onClose={() => setEditingGroup(null)}
+          onSuccess={() => {
+            loadGroups();
+            onRefreshParent?.();
+          }}
+        />
+      )}
     </div>
   );
 };

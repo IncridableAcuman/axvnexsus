@@ -11,6 +11,7 @@ import type { Schedule, Student, Mentor, StudyGroup } from './types';
 
 import { UsersDirectory } from './components/users/UsersDirectory';
 import { GroupsDirectory } from './components/groups/GroupsDirectory';
+import { BranchesView } from './features/branches/BranchesView';
 import { MentorDirectory } from './components/mentors/MentorDirectory';
 import { AttendanceCalendar } from './components/attendance/AttendanceCalendar';
 import { LessonManager } from './components/lessons/LessonManager';
@@ -231,6 +232,8 @@ export const App: React.FC<{ initialTab?: string }> = ({ initialTab = 'dashboard
           )}
 
           {activeTab === 'grading' && <GamificationDashboard students={students} />}
+
+          {activeTab === 'branches' && <BranchesView />}
 
           {activeTab === 'groups' && (
             <GroupsDirectory

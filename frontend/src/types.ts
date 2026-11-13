@@ -1,3 +1,71 @@
+export interface Branch {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+  region: string;
+  district?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+  studentCount?: number;
+  groupCount?: number;
+  mentorCount?: number;
+  roomCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type BranchDto = Branch;
+
+export interface Room {
+  id: number;
+  name: string;
+  capacity?: number;
+  branchLocation?: string;
+  branchId?: number;
+}
+
+export interface CreateBranchRequest {
+  name: string;
+  code: string;
+  description?: string;
+  region: string;
+  district?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  status?: string;
+}
+
+export interface UpdateBranchRequest {
+  name: string;
+  code: string;
+  description?: string;
+  region: string;
+  district?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  status?: string;
+}
+
+export interface BranchStatisticsDto {
+  branchId: number;
+  branchName: string;
+  branchCode: string;
+  totalStudents: number;
+  activeStudents: number;
+  totalGroups: number;
+  activeGroups: number;
+  totalMentors: number;
+  totalRooms: number;
+  totalRoomCapacity: number;
+  averageGroupSize: number;
+  capacityUtilizationRate: number;
+}
+
 export interface Mentor {
   id: number;
   fullName: string;
@@ -5,6 +73,9 @@ export interface Mentor {
   phone?: string;
   email?: string;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
   bio?: string;
 }
 
@@ -15,6 +86,9 @@ export interface StudyGroup {
   gradeLevel: string;
   subject?: string;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
   roomLocation?: string;
   room?: string;
   lessonDays?: string;
@@ -39,6 +113,9 @@ export interface Schedule {
   endTime: string;
   room?: string;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
   academicYear?: string;
   topic?: string;
   durationMinutes?: number;
@@ -52,6 +129,9 @@ export interface Student {
   district?: string;
   gradeLevel?: string;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
   phone?: string;
   direction?: string;
   status: string;
@@ -103,6 +183,9 @@ export interface ParsedStudentDto {
   gradeLevel?: string;
   groupCode?: string;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
   phone?: string;
   status?: string;
 }
@@ -152,6 +235,9 @@ export interface CreateMentorRequest {
   phone?: string;
   email?: string;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
   bio?: string;
 }
 
@@ -162,6 +248,9 @@ export interface MentorProvisionDto {
   phone?: string;
   email?: string;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
   bio?: string;
   hemisId: string;
   temporaryPassword: string;
@@ -178,6 +267,9 @@ export interface CreateStudentRequest {
   pinfl?: string;
   district?: string;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
 }
 
 export interface StudentProvisionDto {
@@ -190,6 +282,9 @@ export interface StudentProvisionDto {
   groupCode?: string;
   mentorName?: string;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
   phone?: string;
   pinfl?: string;
   direction?: string;
@@ -320,6 +415,9 @@ export interface GroupDetailDto {
   gradeLevel: string;
   subject?: string;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
   scheduleDays?: string;
   scheduleTime?: string;
   room?: string;
@@ -371,6 +469,9 @@ export interface PublicMentorProfileDto {
   bio?: string;
   yearsOfExperience: number;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
   publicPhone?: string;
   publicEmail?: string;
   githubUrl?: string;
@@ -399,6 +500,9 @@ export interface UpdateMentorProfileRequest {
   bio?: string;
   yearsOfExperience?: number;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
   phone?: string;
   email?: string;
   isContactPublic?: boolean;
@@ -827,6 +931,9 @@ export interface IndividualStudentAnalyticsDto {
   groupCode?: string;
   mentorName?: string;
   branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
 
   completedLessonsCount: number;
   totalCurriculumLessons: number;
@@ -985,6 +1092,150 @@ export interface DashboardOverviewDto {
   groupComparisons: GroupComparisonDto[];
   systemTrend: TrendDataPointDto[];
   ruleDocumentation: MetricRuleDocumentationDto;
+}
+
+export interface DailyAttendanceDto {
+  day: string;
+  date: string;
+  rate: number;
+  presentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  absentCount: number;
+  totalCount: number;
+}
+
+export interface RoomOccupancyDto {
+  roomId: number;
+  name: string;
+  branchLocation: string;
+  used: number;
+  total: number;
+  percent: number;
+  indicator: string;
+}
+
+export interface ScheduledSessionDto {
+  id: number;
+  groupId: number;
+  groupCode: string;
+  subject: string;
+  topic?: string;
+  gradeLevel: string;
+  mentorName: string;
+  room?: string;
+  branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  branch?: Branch;
+  lessonDate: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  studentCount: number;
+}
+
+export interface PendingSubmissionDto {
+  submissionId: number;
+  assignmentId: number;
+  title: string;
+  studentId: number;
+  studentName: string;
+  groupCode: string;
+  submittedAt: string;
+  timeFormatted: string;
+}
+
+export interface ActiveTaskDto {
+  id: number;
+  title: string;
+  subject: string;
+  deadline: string;
+  dueDate?: string;
+  urgent: boolean;
+  type: 'ASSIGNMENT' | 'ASSESSMENT' | string;
+  isSubmitted: boolean;
+  score?: number | null;
+}
+
+export interface LatestFeedbackDto {
+  subject: string;
+  topic: string;
+  score?: number | null;
+  maxScore: number;
+  mentorFeedback: string;
+  mentorName: string;
+  gradedAt: string;
+  formattedDate: string;
+}
+
+export interface AdminDashboardDto {
+  totalActiveStudents: number;
+  totalMentors: number;
+  totalGroups: number;
+  totalScheduledLessons: number;
+  systemAttendanceRate: number;
+  systemAverageScore: number;
+  totalCompletedLessons: number;
+  totalSubmittedAssignments: number;
+  totalEvaluatedAssessments: number;
+  presentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  absentCount: number;
+  weeklyAttendance: DailyAttendanceDto[];
+  roomOccupancy: RoomOccupancyDto[];
+  groupPerformance: GroupComparisonDto[];
+  enrollmentByGrade: Record<string, number>;
+  systemTrend: TrendDataPointDto[];
+  ruleDocumentation?: MetricRuleDocumentationDto;
+}
+
+export interface MentorDashboardDto {
+  mentorId: number;
+  mentorName: string;
+  role: string;
+  branchLocation: string;
+  todayLessonsCount: number;
+  assignedGroupsCount: number;
+  assignedStudentsCount: number;
+  todayAttendanceRate: number;
+  pendingGradingCount: number;
+  nextLesson?: ScheduledSessionDto | null;
+  todayLessons: ScheduledSessionDto[];
+  pendingReviews: PendingSubmissionDto[];
+  weeklyAttendanceTrend: TrendDataPointDto[];
+  theoryMasteryRate: number;
+  codingPracticeRate: number;
+  miniProjectRate: number;
+}
+
+export interface StudentDashboardDto {
+  studentId: number;
+  studentName: string;
+  studentIdNumber: string;
+  gradeLevel: string;
+  groupId?: number | null;
+  groupCode: string;
+  mentorName: string;
+  branchLocation: string;
+  level: number;
+  totalPoints: number;
+  rank: number;
+  currentStreak: number;
+  longestStreak: number;
+  nextLevelXp: number;
+  badgesCount: number;
+  gpa: number;
+  courseProgress: number;
+  attendanceRate: number;
+  presentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  absentCount: number;
+  todayLesson?: ScheduledSessionDto | null;
+  activeTasks: ActiveTaskDto[];
+  latestFeedback?: LatestFeedbackDto | null;
 }
 
 // ============================================================================

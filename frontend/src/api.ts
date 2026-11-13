@@ -12,8 +12,10 @@ import type {
   AuthResponse,
 } from './types';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   timeout: 60000,
 });
 
@@ -56,7 +58,7 @@ api.interceptors.response.use(
             const refreshRes = await axios.post<{
               success: boolean;
               data: AuthResponse;
-            }>('/api/auth/refresh-token', {
+            }>(`${API_BASE_URL}/auth/refresh-token`, {
               refreshToken: user.refreshToken,
             });
 
@@ -100,6 +102,10 @@ export const scheduleApi = {
 };
 
 export const studentApi = {
+  getMe: () => {
+    return api.get<Student>('/students/me');
+  },
+
   getAll: (gradeLevel?: string, mentorId?: number, groupId?: number) => {
     const params: Record<string, unknown> = {};
     if (gradeLevel) params.gradeLevel = gradeLevel;
@@ -305,12 +311,13 @@ export const rbacApi = {
 
 // Module 05: Education Structure & Groups API
 export const groupStructureApi = {
-  getAll: (gradeLevel?: string, mentorId?: number, status?: string, search?: string) => {
+  getAll: (gradeLevel?: string, mentorId?: number, status?: string, search?: string, branchId?: number) => {
     const params: Record<string, unknown> = {};
     if (gradeLevel) params.gradeLevel = gradeLevel;
     if (mentorId) params.mentorId = mentorId;
     if (status) params.status = status;
     if (search) params.search = search;
+    if (branchId) params.branchId = branchId;
     return api.get<import('./types').StudyGroup[]>('/groups', { params });
   },
 
@@ -318,9 +325,15 @@ export const groupStructureApi = {
     return api.get<{ success: boolean; data: import('./types').GroupDetailDto }>(`/groups/${id}`);
   },
 
-  create: (data: Partial<import('./types').StudyGroup>, academicPeriodId?: number, mentorId?: number) => {
+  create: (data: Partial<import('./types').StudyGroup>, academicPeriodId?: number, mentorId?: number, branchId?: number) => {
     return api.post<{ success: boolean; message: string; data: import('./types').StudyGroup }>('/groups', data, {
-      params: { academicPeriodId, mentorId },
+      params: { academicPeriodId, mentorId, branchId },
+    });
+  },
+
+  update: (id: number, data: Partial<import('./types').StudyGroup>, academicPeriodId?: number, mentorId?: number, branchId?: number) => {
+    return api.put<{ success: boolean; message: string; data: import('./types').StudyGroup }>(`/groups/${id}`, data, {
+      params: { academicPeriodId, mentorId, branchId },
     });
   },
 
@@ -328,11 +341,21 @@ export const groupStructureApi = {
     return api.post<{ success: boolean; message: string; data: import('./types').GroupMembershipDto }>(`/groups/${groupId}/students`, { studentId });
   },
 
+  unenrollStudent: (groupId: number, studentId: number, reason?: string) => {
+    return api.delete<{ success: boolean; message: string; data: import('./types').GroupMembershipDto }>(`/groups/${groupId}/students/${studentId}`, {
+      params: { reason },
+    });
+  },
+
   transferStudent: (currentGroupId: number, studentId: number, targetGroupId: number, reason?: string) => {
     return api.post<{ success: boolean; message: string; data: import('./types').GroupMembershipDto }>(
       `/groups/${currentGroupId}/students/${studentId}/transfer`,
       { targetGroupId, reason }
     );
+  },
+
+  assignMentor: (groupId: number, mentorId: number) => {
+    return api.put<{ success: boolean; message: string; data: import('./types').StudyGroup }>(`/groups/${groupId}/mentor/${mentorId}`);
   },
 
   getGroupHistory: (groupId: number) => {
@@ -347,6 +370,45 @@ export const groupStructureApi = {
     return api.patch<{ success: boolean; message: string; data: import('./types').StudyGroup }>(`/groups/${groupId}/status`, null, {
       params: { status },
     });
+  },
+};
+
+// Milestone 11: Branches & Multi-Branch Hierarchy API
+export const branchApi = {
+  getAll: (status?: string, region?: string, search?: string) => {
+    const params: Record<string, unknown> = {};
+    if (status) params.status = status;
+    if (region) params.region = region;
+    if (search) params.search = search;
+    return api.get<{ success: boolean; data: import('./types').BranchDto[] }>('/branches', { params });
+  },
+
+  getById: (id: number) => {
+    return api.get<{ success: boolean; data: import('./types').BranchDto }>(`/branches/${id}`);
+  },
+
+  getStatistics: (id: number) => {
+    return api.get<{ success: boolean; data: import('./types').BranchStatisticsDto }>(`/branches/${id}/statistics`);
+  },
+
+  create: (data: import('./types').CreateBranchRequest) => {
+    return api.post<{ success: boolean; message: string; data: import('./types').BranchDto }>('/branches', data);
+  },
+
+  update: (id: number, data: import('./types').UpdateBranchRequest) => {
+    return api.put<{ success: boolean; message: string; data: import('./types').BranchDto }>(`/branches/${id}`, data);
+  },
+
+  delete: (id: number) => {
+    return api.delete<{ success: boolean; message: string }>(`/branches/${id}`);
+  },
+
+  getGroups: (id: number) => {
+    return api.get<{ success: boolean; data: import('./types').StudyGroup[] }>(`/branches/${id}/groups`);
+  },
+
+  getRooms: (id: number) => {
+    return api.get<{ success: boolean; data: import('./types').Room[] }>(`/branches/${id}/rooms`);
   },
 };
 
@@ -519,9 +581,10 @@ export const assessmentApi = {
   update: (id: number, data: { assessment: Partial<import('./types').AssessmentDto>; questions: import('./types').AssessmentQuestionDto[] }) => {
     return api.put<import('./types').AssessmentDto>(`/assessments/${id}`, data);
   },
-  startAttempt: (assessmentId: number, studentId: number) => {
+  startAttempt: (assessmentId: number, studentId?: number) => {
+    const params = studentId ? { studentId } : undefined;
     return api.post<import('./types').StudentAssessmentAttemptDto>(`/assessments/${assessmentId}/start`, null, {
-      params: { studentId },
+      params,
     });
   },
   submitAttempt: (attemptId: number, answers: Record<number, string>) => {
@@ -540,6 +603,9 @@ export const assessmentApi = {
   getAttemptAnswers: (attemptId: number) => {
     return api.get<import('./types').StudentAnswerDto[]>(`/assessments/attempts/${attemptId}/answers`);
   },
+  getMyAttempts: () => {
+    return api.get<import('./types').StudentAssessmentAttemptDto[]>('/assessments/my-attempts');
+  },
   getStudentAttempts: (studentId: number) => {
     return api.get<import('./types').StudentAssessmentAttemptDto[]>(`/assessments/students/${studentId}/attempts`);
   },
@@ -555,8 +621,11 @@ export const assignmentApi = {
   create: (data: Partial<import('./types').AssignmentDto>) => {
     return api.post<import('./types').AssignmentDto>('/assignments', data);
   },
-  submit: (id: number, data: { studentId: number; submissionText?: string; fileUrl?: string }) => {
+  submit: (id: number, data: { studentId?: number; submissionText?: string; fileUrl?: string }) => {
     return api.post<import('./types').AssignmentSubmissionDto>(`/assignments/${id}/submit`, data);
+  },
+  getMySubmissions: () => {
+    return api.get<import('./types').AssignmentSubmissionDto[]>('/assignments/my-submissions');
   },
   grade: (submissionId: number, data: { mentorId: number; score: number; feedback?: string }) => {
     return api.post<import('./types').AssignmentSubmissionDto>(`/assignments/submissions/${submissionId}/grade`, data);
@@ -576,6 +645,9 @@ export const gradingApi = {
   recordGrade: (data: Partial<import('./types').GradeRecordDto>) => {
     return api.post<import('./types').GradeRecordDto>('/grading/grades', data);
   },
+  getMyGrades: () => {
+    return api.get<import('./types').GradeRecordDto[]>('/grading/grades/me');
+  },
   getStudentGrades: (studentId: number) => {
     return api.get<import('./types').GradeRecordDto[]>(`/grading/grades/student/${studentId}`);
   },
@@ -594,6 +666,9 @@ export const gradingApi = {
   adjustPoints: (data: { studentId: number; deltaAmount: number; reason: string; authorizedUserId?: number }) => {
     return api.post<import('./types').PointTransactionDto>('/grading/points/adjust', data);
   },
+  getMyTransactions: () => {
+    return api.get<import('./types').PointTransactionDto[]>('/grading/points/me');
+  },
   getStudentTransactions: (studentId: number) => {
     return api.get<import('./types').PointTransactionDto[]>(`/grading/points/student/${studentId}`);
   },
@@ -603,12 +678,22 @@ export const gradingApi = {
   getGroupLeaderboard: () => {
     return api.get<import('./types').GroupLeaderboardEntryDto[]>('/grading/leaderboard/groups');
   },
+  getMyProfile: () => {
+    return api.get<import('./types').StudentGamificationProfileDto>('/grading/profile/me');
+  },
   getStudentProfile: (studentId: number) => {
     return api.get<import('./types').StudentGamificationProfileDto>(`/grading/profile/${studentId}`);
   },
-  checkInStreak: (studentId: number, activityType: string = 'DAILY_CHECKIN') => {
+  getMyStreak: () => {
+    return api.get<import('./types').StudentStreakDto>('/grading/streak/me');
+  },
+  checkInStreak: (studentId?: number, activityType: string = 'DAILY_CHECKIN') => {
+    const params: Record<string, unknown> = { activityType };
+    if (studentId) {
+      params.studentId = studentId;
+    }
     return api.post<import('./types').StreakCheckInResultDto>('/grading/streak/check-in', null, {
-      params: { studentId, activityType },
+      params,
     });
   },
   getStudentStreak: (studentId: number) => {
@@ -623,6 +708,15 @@ export const gradingApi = {
 // Module 12: Analytics & Reporting API
 // ============================================================================
 export const analyticsApi = {
+  getAdminDashboard: (params?: { from?: string; to?: string; groupId?: number }) => {
+    return api.get<import('./types').AdminDashboardDto>('/analytics/dashboard/admin', { params });
+  },
+  getMentorDashboard: (params?: { from?: string; to?: string }) => {
+    return api.get<import('./types').MentorDashboardDto>('/analytics/dashboard/mentor', { params });
+  },
+  getStudentDashboard: (params?: { from?: string; to?: string }) => {
+    return api.get<import('./types').StudentDashboardDto>('/analytics/dashboard/student', { params });
+  },
   getOverview: (params?: { from?: string; to?: string }) => {
     return api.get<import('./types').DashboardOverviewDto>('/analytics/overview', { params });
   },

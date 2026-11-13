@@ -2,6 +2,7 @@ package uz.axm.nexus.scheduling.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import uz.axm.nexus.branches.domain.Branch;
 import uz.axm.nexus.classrooms.domain.StudyGroup;
 import uz.axm.nexus.mentors.domain.Mentor;
 import uz.axm.nexus.shared.domain.BaseEntity;
@@ -41,6 +42,10 @@ public class Schedule extends BaseEntity {
     private String room; // "IT Lab 1"
 
     private String branchLocation; // "IT Park Yangiariq"
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
 
     private String academicYear; // "2026-2027"
 

@@ -15,6 +15,7 @@ import {
   Trophy,
   BarChart3,
   Bot,
+  Building2,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -100,6 +101,15 @@ export const navItems: NavItem[] = [
   },
 
   // JAMOA & TUZILMA
+  {
+    id: 'branches',
+    labelKey: 'nav.branches',
+    label: 'Filiallar & Markazlar',
+    icon: Building2,
+    sectionKey: 'nav.sectionStructure',
+    section: 'TUZILMA',
+    allowedRoles: ['ROLE_ADMIN', 'ROLE_SUPER_ADMIN', 'ROLE_PROGRAM_ADMIN', 'ROLE_REGIONAL_COORDINATOR', 'ROLE_COORDINATOR'],
+  },
   {
     id: 'groups',
     labelKey: 'nav.groups',

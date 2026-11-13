@@ -14,10 +14,19 @@ spring:
       fail-on-unknown-properties: false
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:axvhub}
-    username: ${DB_USER:izzatbek}
-    password: ${DB_PASSWORD:postgres}
+    url: ${SPRING_DATASOURCE_URL:${DB_URL:${DATABASE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:axvhub}${DB_SSL:}}}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DB_USER:izzatbek}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:postgres}}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      idle-timeout: 30000
+      pool-name: NexusHikariPool
+      max-lifetime: 1800000
+      connection-timeout: 20000
+      data-source-properties:
+        prepareThreshold: ${DB_PREPARE_THRESHOLD:5}
 
   jpa:
     hibernate:
@@ -91,9 +100,17 @@ springdoc:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
+  seeder:
+    demo-data-enabled: ${APP_SEEDER_DEMO_DATA_ENABLED:true}
   security:
     allow-public-registration: ${ALLOW_PUBLIC_REGISTRATION:false}
     captcha-required: ${CAPTCHA_REQUIRED:false}
+    superadmin-bootstrap:
+      enabled: ${SUPER_ADMIN_BOOTSTRAP_ENABLED:false}
+      username: ${SUPER_ADMIN_BOOTSTRAP_USERNAME:admin}
+      password: ${SUPER_ADMIN_BOOTSTRAP_PASSWORD:}
+      email: ${SUPER_ADMIN_BOOTSTRAP_EMAIL:admin@axm-nexus.uz}
+      full-name: ${SUPER_ADMIN_BOOTSTRAP_FULL_NAME:Tizim Super Administratori}
   jwt:
     secret: ${APP_JWT_SECRET:axm_nexus_super_secret_jwt_key_that_is_at_least_256_bits_long_for_security_reasons_12345}
     expiration-ms: 86400000

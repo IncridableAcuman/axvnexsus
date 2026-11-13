@@ -1,5 +1,6 @@
 import React from 'react'
 import { useTranslation } from '@/shared/i18n'
+import { useStudentDashboard } from '@/features/analytics'
 import {
   GraduationCap,
   FileCheck,
@@ -25,14 +26,41 @@ export interface StudentDashboardViewProps {
 }
 
 export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
-  currentDateFormatted,
-  userFullName,
-  onNavigateTab,
+  currentDateFormatted = '',
+  userFullName = '',
+  onNavigateTab = () => {},
 }) => {
   const { t } = useTranslation()
+  const { data: studentData, hasProfile } = useStudentDashboard()
+
+  const displayName = studentData?.studentName || userFullName || 'Iqtidorli O‘quvchi'
+  const trackLabel = studentData?.gradeLevel
+    ? `${studentData.gradeLevel} • Guruh: ${studentData.groupCode || '-'}`
+    : t('dashboard.student.trackName')
+
+  const xpValue = studentData?.totalPoints ?? 0
+  const levelValue = studentData?.level ?? 1
+  const rankLabel = studentData?.rank
+    ? `Guruhda ${studentData.rank}-o‘rin 🏆`
+    : t('dashboard.student.rankInGroup')
+  const nextLevelXPText = studentData?.nextLevelXp
+    ? `Keyingi darajagacha ${Math.max(0, studentData.nextLevelXp - xpValue)} XP`
+    : t('dashboard.student.nextLevelXP')
+
+  const gpaValue = studentData?.gpa !== undefined ? studentData.gpa : 0
+  const courseProgressValue = studentData?.courseProgress !== undefined ? studentData.courseProgress : 0
+  const attendanceRateValue = studentData?.attendanceRate !== undefined ? studentData.attendanceRate : 0
+  const badgesCountValue = studentData?.badgesCount ?? 0
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {!hasProfile && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 flex items-center gap-3 text-xs">
+          <AlertCircle className="w-5 h-5 shrink-0 text-amber-500" />
+          <span>{t('dashboard.student.missingProfileNotice')}</span>
+        </div>
+      )}
+
       {/* Student Welcome Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-950 via-slate-900 to-indigo-950 text-white p-6 sm:p-8 shadow-xl">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -40,13 +68,13 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-cyan-300 text-xs font-bold">
                 <GraduationCap className="w-3.5 h-3.5 text-cyan-300" />
-                <span>{t('dashboard.student.trackName')}</span>
+                <span>{trackLabel}</span>
               </span>
               <span className="text-xs text-slate-300">{currentDateFormatted}</span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              {t('dashboard.student.welcome', { name: userFullName || 'Iqtidorli O‘quvchi' })}
+              {t('dashboard.student.welcome', { name: displayName })}
             </h1>
 
             <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
@@ -78,14 +106,14 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
           <div className="shrink-0 bg-white/5 backdrop-blur-md rounded-2xl p-4 sm:p-5 text-center min-w-[200px]">
             <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold uppercase tracking-wider mb-2">
               <Flame className="w-3 h-3 text-amber-400" />
-              <span>{t('dashboard.student.levelBadge', { level: 4 })}</span>
+              <span>{t('dashboard.student.levelBadge', { level: levelValue })}</span>
             </div>
             <div className="text-2xl sm:text-3xl font-black text-amber-300 font-mono">
-              1,450 XP
+              {xpValue.toLocaleString()} XP
             </div>
-            <p className="text-[11px] text-slate-300 mt-1">{t('dashboard.student.rankInGroup')}</p>
+            <p className="text-[11px] text-slate-300 mt-1">{rankLabel}</p>
             <div className="mt-3 pt-2.5 text-[10px] text-cyan-300 font-semibold">
-              {t('dashboard.student.nextLevelXP')}
+              {nextLevelXPText}
             </div>
           </div>
         </div>
@@ -110,7 +138,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
               </div>
             </div>
             <div className="text-2xl font-black text-blue-600 dark:text-blue-400 font-mono">
-              94.8 / 100
+              {gpaValue} / 100
             </div>
           </div>
           <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-2">
@@ -127,10 +155,12 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
               </div>
             </div>
             <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono">
-              68%
+              {courseProgressValue}%
             </div>
           </div>
-          <p className="text-[11px] text-[var(--text-muted)] mt-2">{t('dashboard.student.progressTopics')}</p>
+          <p className="text-[11px] text-[var(--text-muted)] mt-2">
+            {t('dashboard.student.progressTopics')}
+          </p>
         </div>
 
         <div className="bg-card text-card-foreground p-5 rounded-2xl shadow-[0_2px_14px_-2px_rgba(0,0,0,0.05)] dark:shadow-none hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border-0 flex flex-col justify-between">
@@ -142,11 +172,11 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
               </div>
             </div>
             <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 font-mono">
-              100%
+              {attendanceRateValue}%
             </div>
           </div>
           <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-2">
-            {t('dashboard.student.zeroAbsence')}
+            {studentData?.presentCount !== undefined ? `${studentData.presentCount} ta hozir, ${studentData.absentCount || 0} ta qoldirilgan` : t('dashboard.student.zeroAbsence')}
           </p>
         </div>
 
@@ -159,7 +189,7 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
               </div>
             </div>
             <div className="text-2xl font-black text-amber-600 dark:text-amber-400 font-mono">
-              7
+              {badgesCountValue}
             </div>
           </div>
           <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-2">
@@ -187,32 +217,38 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
               </span>
             </div>
 
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-cyan-500/10 border-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="font-mono font-bold px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-700 dark:text-blue-300">
-                    14:00 – 15:20
-                  </span>
-                  <span className="text-[var(--text-muted)] flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-indigo-500" />
-                    IT Lab 1
-                  </span>
+            {studentData?.todayLesson ? (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-cyan-500/10 border-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-mono font-bold px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-700 dark:text-blue-300">
+                      {studentData.todayLesson.startTime} – {studentData.todayLesson.endTime}
+                    </span>
+                    <span className="text-[var(--text-muted)] flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-indigo-500" />
+                      {studentData.todayLesson.room || 'IT Lab'}
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-sm sm:text-base text-[var(--text-primary)]">
+                    {studentData.todayLesson.subject}
+                  </h4>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Mentor: {studentData.todayLesson.mentorName}{studentData.todayLesson.topic ? ` • Mavzu: ${studentData.todayLesson.topic}` : ''}
+                  </p>
                 </div>
-                <h4 className="font-bold text-sm sm:text-base text-[var(--text-primary)]">
-                  HTML5 Semantic & Flexbox Layout asoslari
-                </h4>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Mentor: Dilnoza Rahimova • Amaliy loyiha: Shaxsiy Landing Sahifa
-                </p>
-              </div>
 
-              <button
-                onClick={() => onNavigateTab('materials')}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-sm transition cursor-pointer self-start sm:self-auto shrink-0"
-              >
-                {t('dashboard.student.lessonMaterialsBtn')}
-              </button>
-            </div>
+                <button
+                  onClick={() => onNavigateTab('materials')}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-sm transition cursor-pointer self-start sm:self-auto shrink-0"
+                >
+                  {t('dashboard.student.lessonMaterialsBtn')}
+                </button>
+              </div>
+            ) : (
+              <div className="py-6 text-center text-xs text-[var(--text-muted)]">
+                {t('dashboard.student.noTodayLesson')}
+              </div>
+            )}
           </div>
 
           {/* Approaching Deadlines */}
@@ -233,62 +269,51 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
             </div>
 
             <div className="space-y-3">
-              {[
-                {
-                  id: 1,
-                  title: 'Flexbox Layout yordamida Portfolio maketini yaratish',
-                  deadline: 'Bugun 23:59',
-                  urgent: true,
-                  subject: 'Web Full-Stack',
-                },
-                {
-                  id: 2,
-                  title: 'Massivlar va qidiruv algoritmlari amaliy mashqlari',
-                  deadline: '2 kundan so‘ng',
-                  urgent: false,
-                  subject: 'Algoritmlash',
-                },
-                {
-                  id: 3,
-                  title: 'TypeScript interface va generic tiplar bilan ishlash',
-                  deadline: '4 kundan so‘ng',
-                  urgent: false,
-                  subject: 'Web Full-Stack',
-                },
-              ].map((task) => (
-                <div
-                  key={task.id}
-                  className="p-3.5 rounded-2xl bg-muted/30 dark:bg-muted/15 border-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-background text-[var(--text-secondary)]">
-                        {task.subject}
-                      </span>
-                      {task.urgent && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
-                          {t('dashboard.student.urgentDeadline')}
+              {studentData?.activeTasks && studentData.activeTasks.length > 0 ? (
+                studentData.activeTasks.map((task) => (
+                  <div
+                    key={`${task.type}-${task.id}`}
+                    className="p-3.5 rounded-2xl bg-muted/30 dark:bg-muted/15 border-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-background text-[var(--text-secondary)]">
+                          {task.subject}
                         </span>
-                      )}
+                        {task.urgent && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400">
+                            {t('dashboard.student.urgentDeadline')}
+                          </span>
+                        )}
+                        {task.isSubmitted && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
+                            Topshirilgan
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-xs sm:text-sm text-[var(--text-primary)]">
+                        {task.title}
+                      </h4>
                     </div>
-                    <h4 className="font-bold text-xs sm:text-sm text-[var(--text-primary)]">
-                      {task.title}
-                    </h4>
-                  </div>
 
-                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-                    <span className="font-mono text-xs font-semibold text-[var(--text-muted)]">
-                      {task.deadline}
-                    </span>
-                    <button
-                      onClick={() => onNavigateTab('assessments')}
-                      className="px-3 py-1.5 rounded-xl bg-[var(--brand-primary)] text-white font-bold text-xs hover:opacity-90 transition cursor-pointer"
-                    >
-                      {t('dashboard.student.submitBtn')}
-                    </button>
+                    <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                      <span className="font-mono text-xs font-semibold text-[var(--text-muted)]">
+                        {task.deadline}
+                      </span>
+                      <button
+                        onClick={() => onNavigateTab('assessments')}
+                        className="px-3 py-1.5 rounded-xl bg-[var(--brand-primary)] text-white font-bold text-xs hover:opacity-90 transition cursor-pointer"
+                      >
+                        {task.isSubmitted ? 'Ko‘rish' : t('dashboard.student.submitBtn')}
+                      </button>
+                    </div>
                   </div>
+                ))
+              ) : (
+                <div className="py-6 text-center text-xs text-[var(--text-muted)]">
+                  {t('dashboard.student.noActiveTasks')}
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
@@ -302,23 +327,31 @@ export const StudentDashboardView: React.FC<StudentDashboardViewProps> = ({
                 <FileText className="w-4 h-4 text-emerald-500" />
                 <span>{t('dashboard.student.latestFeedbackTitle')}</span>
               </h3>
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                94 / 100
-              </span>
+              {studentData?.latestFeedback?.score !== undefined && studentData?.latestFeedback?.score !== null && (
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  {studentData.latestFeedback.score} / {studentData.latestFeedback.maxScore || 100}
+                </span>
+              )}
             </div>
 
-            <div className="p-3 rounded-2xl bg-muted/20 border-0 space-y-2 text-xs">
-              <div className="font-bold text-[var(--text-primary)]">
-                Mavzu: CSS Box Model & Grid Amaliyoti
+            {studentData?.latestFeedback ? (
+              <div className="p-3 rounded-2xl bg-muted/20 border-0 space-y-2 text-xs">
+                <div className="font-bold text-[var(--text-primary)]">
+                  Mavzu: {studentData.latestFeedback.topic}
+                </div>
+                <p className="text-[11px] text-[var(--text-secondary)] italic leading-relaxed">
+                  «{studentData.latestFeedback.mentorFeedback}»
+                </p>
+                <div className="text-[10px] text-[var(--text-muted)] pt-1 border-t border-border/15 flex items-center justify-between">
+                  <span>Ustoz: {studentData.latestFeedback.mentorName}</span>
+                  <span>{studentData.latestFeedback.formattedDate}</span>
+                </div>
               </div>
-              <p className="text-[11px] text-[var(--text-secondary)] italic leading-relaxed">
-                «Algoritmik yondashuvingiz va toza kod yozishingiz tahsinga sazovor. Keyingi darsda responsive breakpointlar bo‘yicha biroz ko‘proq sinov qiling.»
-              </p>
-              <div className="text-[10px] text-[var(--text-muted)] pt-1 border-t border-border/15 flex items-center justify-between">
-                <span>Ustoz: Dilnoza Rahimova</span>
-                <span>Kecha, 16:45</span>
+            ) : (
+              <div className="py-4 text-center text-xs text-[var(--text-muted)]">
+                {t('dashboard.student.noFeedback')}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Recommended Learning Resources */}

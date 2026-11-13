@@ -11,18 +11,20 @@ import uz.axm.nexus.assignments.application.AssignmentService;
 import uz.axm.nexus.assignments.domain.Assignment;
 import uz.axm.nexus.assignments.domain.AssignmentSubmission;
 import uz.axm.nexus.shared.application.ResourceOwnershipService;
+import uz.axm.nexus.shared.infrastructure.CurrentUserHelper;
 
 import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/assignments")
+@RequestMapping({"/api/assignments", "/api/v1/assignments"})
 @RequiredArgsConstructor
 @Tag(name = "Assignments & Homework", description = "Modul 10: Uy vazifalari va mustaqil amaliy topshiriqlar")
 public class AssignmentController {
 
     private final AssignmentService assignmentService;
     private final ResourceOwnershipService resourceOwnershipService;
+    private final CurrentUserHelper currentUserHelper;
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
@@ -55,11 +57,27 @@ public class AssignmentController {
             @PathVariable Long id,
             @RequestBody Map<String, Object> payload
     ) {
-        Long studentId = ((Number) payload.get("studentId")).longValue();
-        resourceOwnershipService.verifyStudentAccess(studentId);
+        Long targetStudentId;
+        if (currentUserHelper.isStudent()) {
+            targetStudentId = resourceOwnershipService.requireCurrentStudent().getId();
+        } else if (payload.containsKey("studentId") && payload.get("studentId") != null) {
+            targetStudentId = ((Number) payload.get("studentId")).longValue();
+            resourceOwnershipService.verifyStudentAccess(targetStudentId);
+        } else {
+            targetStudentId = resourceOwnershipService.requireCurrentStudent().getId();
+        }
+
         String text = (String) payload.get("submissionText");
         String fileUrl = (String) payload.get("fileUrl");
-        return ResponseEntity.ok(assignmentService.submitAssignment(id, studentId, text, fileUrl));
+        return ResponseEntity.ok(assignmentService.submitAssignment(id, targetStudentId, text, fileUrl));
+    }
+
+    @GetMapping("/my-submissions")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Joriy o'quvchining barcha topshirgan ishlari")
+    public ResponseEntity<List<AssignmentSubmission>> getMySubmissions() {
+        Long currentStudentId = resourceOwnershipService.requireCurrentStudent().getId();
+        return ResponseEntity.ok(assignmentService.getSubmissionsByStudent(currentStudentId));
     }
 
     @PostMapping("/submissions/{submissionId}/grade")

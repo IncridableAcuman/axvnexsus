@@ -9,6 +9,8 @@ import uz.axm.nexus.access.domain.Permission;
 import uz.axm.nexus.access.domain.Role;
 import uz.axm.nexus.access.infrastructure.PermissionRepository;
 import uz.axm.nexus.access.infrastructure.RoleRepository;
+import uz.axm.nexus.branches.domain.Branch;
+import uz.axm.nexus.branches.infrastructure.BranchRepository;
 import uz.axm.nexus.classrooms.domain.GroupMembership;
 import uz.axm.nexus.classrooms.domain.StudyGroup;
 import uz.axm.nexus.classrooms.infrastructure.GroupMembershipRepository;
@@ -78,6 +80,7 @@ public class DataSeeder implements CommandLineRunner {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final AcademicPeriodRepository academicPeriodRepository;
+    private final BranchRepository branchRepository;
     private final GroupMembershipRepository groupMembershipRepository;
     private final MentorProfileRepository mentorProfileRepository;
     private final MentorSkillRepository mentorSkillRepository;
@@ -102,11 +105,21 @@ public class DataSeeder implements CommandLineRunner {
     private final uz.axm.nexus.users.infrastructure.UserPreferenceRepository userPreferenceRepository;
     private final uz.axm.nexus.audit.infrastructure.AuditLogRepository auditLogRepository;
     private final uz.axm.nexus.audit.infrastructure.SystemConfigRepository systemConfigRepository;
+    private final uz.axm.nexus.identity.infrastructure.SuperAdminBootstrapService superAdminBootstrapService;
+    private final org.springframework.core.env.Environment environment;
+
+    @org.springframework.beans.factory.annotation.Value("${app.seeder.demo-data-enabled:true}")
+    private boolean demoDataEnabled;
 
     @Override
     public void run(String... args) {
         seedRbacSystem();
         seedDefaultAdmin();
+
+        if (!demoDataEnabled) {
+            log.info("[DATA_SEEDER] Demo data seeding is disabled (app.seeder.demo-data-enabled=false). Skipping sample learning and user data.");
+            return;
+        }
 
         if (mentorRepository.count() == 0) {
             seedCoreEntities();
@@ -136,6 +149,20 @@ public class DataSeeder implements CommandLineRunner {
                 .isActive(true)
                 .build());
 
+        // 1.1 Default Branch (Milestone 11)
+        Branch branchYangiariq = branchRepository.findByCodeIgnoreCase("ITP-YANGIARIQ")
+                .orElseGet(() -> branchRepository.save(Branch.builder()
+                        .name("IT Park Yangiariq filiali")
+                        .code("ITP-YANGIARIQ")
+                        .description("Al-Xorazmiy Vorislari tizimidagi tayanch IT markazi va inkubatsiya filiali")
+                        .region("Xorazm viloyati")
+                        .district("Yangiariq tumani")
+                        .address("Mustaqillik ko‘chasi, 24-uy")
+                        .phone("+998 62 227 12 34")
+                        .email("yangiariq@axm.uz")
+                        .status("ACTIVE")
+                        .build()));
+
         // 2. Mentors
         Mentor mentorIzzatbek = mentorRepository.save(Mentor.builder()
                 .fullName("Abdusharipov Izzatbek quranboy o'g'li")
@@ -143,6 +170,7 @@ public class DataSeeder implements CommandLineRunner {
                 .phone("+998 90 123 45 67")
                 .email("abdusharipovizzat03@gmail.com")
                 .branchLocation("IT Park Yangiariq")
+                .branch(branchYangiariq)
                 .bio("Al-Xorazmiy Vorislari loyihasi IT mentori, Web Full-stack va Advanced Front-end o'qituvchisi.")
                 .build());
 
@@ -152,6 +180,7 @@ public class DataSeeder implements CommandLineRunner {
                 .phone("+998 91 987 65 43")
                 .email("dilnoza.eng@gmail.com")
                 .branchLocation("IT Park Yangiariq")
+                .branch(branchYangiariq)
                 .bio("IT English va xalqaro muloqot ko'nikmalari mentori.")
                 .build());
 
@@ -186,6 +215,7 @@ public class DataSeeder implements CommandLineRunner {
                 .gradeLevel("8-sinf")
                 .subject("Web Full-stack dasturlash asoslari")
                 .branchLocation("IT Park Yangiariq")
+                .branch(branchYangiariq)
                 .scheduleDays("Seshanba-Payshanba-Shanba")
                 .scheduleTime("15:00-16:30")
                 .room("IT-2")
@@ -201,6 +231,7 @@ public class DataSeeder implements CommandLineRunner {
                 .gradeLevel("11-sinf")
                 .subject("Advanced UX/UI dizayn va Advanced Front-end")
                 .branchLocation("IT Park Yangiariq")
+                .branch(branchYangiariq)
                 .scheduleDays("Dushanba-Chorshanba-Juma")
                 .scheduleTime("16:30-18:00")
                 .room("IT-2")
@@ -222,6 +253,7 @@ public class DataSeeder implements CommandLineRunner {
                 .endTime("16:30")
                 .room("IT-2")
                 .branchLocation("IT Park Yangiariq")
+                .branch(branchYangiariq)
                 .academicYear("2026-2027")
                 .topic("Web Full-stack dasturlash asoslari (HTML, CSS, JS)")
                 .durationMinutes(90)
@@ -237,6 +269,7 @@ public class DataSeeder implements CommandLineRunner {
                 .endTime("18:00")
                 .room("IT-2")
                 .branchLocation("IT Park Yangiariq")
+                .branch(branchYangiariq)
                 .academicYear("2026-2027")
                 .topic("Advanced UX/UI dizayn va Advanced Front-end (React & TypeScript)")
                 .durationMinutes(90)
@@ -281,6 +314,8 @@ public class DataSeeder implements CommandLineRunner {
 
         // 7. Group Memberships (Module 05)
         for (Student s : savedStudents) {
+            s.setBranch(branchYangiariq);
+            studentRepository.save(s);
             if (s.getStudyGroup() != null) {
                 groupMembershipRepository.save(GroupMembership.builder()
                         .student(s)
@@ -671,6 +706,8 @@ public class DataSeeder implements CommandLineRunner {
         perms.put("materials.manage", "Materials: O'quv materiallarini boshqarish");
         perms.put("groups.read", "Groups: Guruhlar va ta'lim tuzilmasini ko'rish");
         perms.put("groups.manage", "Groups: Guruhlar va ta'lim tuzilmasini boshqarish");
+        perms.put("branches.read", "Branches: Filiallar va hududiy tuzilmani ko'rish");
+        perms.put("branches.manage", "Branches: Filiallar va infratuzilmani boshqarish");
         perms.put("mentors.read", "Mentors: Mentor profillarini ko'rish");
         perms.put("mentors.manage", "Mentors: Mentor profillarini tasdiqlash va boshqarish");
         // System & Audit
@@ -696,21 +733,21 @@ public class DataSeeder implements CommandLineRunner {
         createRoleIfMissing("SUPER_ADMIN", "Tizimning to'liq cheklovlarsiz boshqaruvchisi", true, new HashSet<>(savedPerms.values()));
         createRoleIfMissing("ADMIN", "Tizim ma'muri (Legacy moslik)", true, new HashSet<>(savedPerms.values()));
         createRoleIfMissing("PROGRAM_ADMIN", "Ta'lim dasturi va jarayonlari koordinatori", true,
-                getPermSet(savedPerms, "users.read", "users.create", "users.update", "roles.read", "lessons.read", "lessons.create", "lessons.update", "lessons.publish", "attendance.read", "attendance.record", "attendance.edit", "assessments.read", "assessments.create", "assessments.grade", "reports.read", "reports.export", "analytics.read", "curriculum.read", "curriculum.manage", "materials.read", "materials.manage", "groups.read", "groups.manage", "mentors.read", "mentors.manage"));
+                getPermSet(savedPerms, "users.read", "users.create", "users.update", "roles.read", "lessons.read", "lessons.create", "lessons.update", "lessons.publish", "attendance.read", "attendance.record", "attendance.edit", "assessments.read", "assessments.create", "assessments.grade", "reports.read", "reports.export", "analytics.read", "curriculum.read", "curriculum.manage", "materials.read", "materials.manage", "groups.read", "groups.manage", "branches.read", "branches.manage", "mentors.read", "mentors.manage"));
         createRoleIfMissing("REGIONAL_COORDINATOR", "Hududiy filial va ta'lim markazlari koordinatori", true,
-                getPermSet(savedPerms, "users.read", "groups.read", "groups.manage", "reports.read", "reports.export", "analytics.read", "lessons.read", "lessons.create", "lessons.update", "attendance.read"));
+                getPermSet(savedPerms, "users.read", "groups.read", "groups.manage", "branches.read", "branches.manage", "reports.read", "reports.export", "analytics.read", "lessons.read", "lessons.create", "lessons.update", "attendance.read"));
         createRoleIfMissing("COORDINATOR", "Koordinator (Legacy moslik)", true,
-                getPermSet(savedPerms, "users.read", "groups.read", "groups.manage", "reports.read", "reports.export", "analytics.read", "lessons.read", "lessons.create", "lessons.update", "attendance.read"));
+                getPermSet(savedPerms, "users.read", "groups.read", "groups.manage", "branches.read", "branches.manage", "reports.read", "reports.export", "analytics.read", "lessons.read", "lessons.create", "lessons.update", "attendance.read"));
         createRoleIfMissing("MENTOR", "IT va fan mentori, dars va davomat o'tkazuvchi", true,
-                getPermSet(savedPerms, "lessons.read", "lessons.create", "lessons.update", "attendance.read", "attendance.record", "attendance.edit", "assessments.read", "assessments.create", "assessments.grade", "materials.read", "materials.manage", "curriculum.read", "reports.read"));
+                getPermSet(savedPerms, "lessons.read", "lessons.create", "lessons.update", "attendance.read", "attendance.record", "attendance.edit", "assessments.read", "assessments.create", "assessments.grade", "materials.read", "materials.manage", "curriculum.read", "reports.read", "groups.read", "branches.read"));
         createRoleIfMissing("ENGLISH_MENTOR", "Ingliz tili fani mentori, dars va davomat o'tkazuvchi", true,
-                getPermSet(savedPerms, "lessons.read", "lessons.create", "lessons.update", "attendance.read", "attendance.record", "attendance.edit", "assessments.read", "assessments.create", "assessments.grade", "materials.read", "materials.manage", "curriculum.read", "reports.read"));
+                getPermSet(savedPerms, "lessons.read", "lessons.create", "lessons.update", "attendance.read", "attendance.record", "attendance.edit", "assessments.read", "assessments.create", "assessments.grade", "materials.read", "materials.manage", "curriculum.read", "reports.read", "groups.read", "branches.read"));
         createRoleIfMissing("STUDENT", "Ta'lim oluvchi o'quvchi", true,
-                getPermSet(savedPerms, "lessons.read", "materials.read", "curriculum.read", "assessments.read", "reports.read"));
+                getPermSet(savedPerms, "lessons.read", "materials.read", "curriculum.read", "assessments.read", "reports.read", "groups.read", "branches.read"));
         createRoleIfMissing("CONTENT_MANAGER", "O'quv rejalari va materiallar muharriri", true,
-                getPermSet(savedPerms, "materials.read", "materials.manage", "curriculum.read", "curriculum.manage", "lessons.read", "lessons.create", "lessons.update", "lessons.publish"));
+                getPermSet(savedPerms, "materials.read", "materials.manage", "curriculum.read", "curriculum.manage", "lessons.read", "lessons.create", "lessons.update", "lessons.publish", "branches.read"));
         createRoleIfMissing("OBSERVER", "Kuzatuvchi va tahlilchi", true,
-                getPermSet(savedPerms, "reports.read", "analytics.read", "users.read", "roles.read", "lessons.read", "curriculum.read", "materials.read"));
+                getPermSet(savedPerms, "reports.read", "analytics.read", "users.read", "roles.read", "lessons.read", "curriculum.read", "materials.read", "groups.read", "branches.read"));
     }
 
     private Set<Permission> getPermSet(Map<String, Permission> map, String... names) {
@@ -737,13 +774,21 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void seedDefaultAdmin() {
+        if (superAdminBootstrapService.isBootstrapEnabled()) {
+            superAdminBootstrapService.bootstrapInitialSuperAdmin();
+            return;
+        }
+
+        boolean isProd = Arrays.asList(environment.getActiveProfiles()).contains("prod");
         Role superAdminRole = roleRepository.findByName("SUPER_ADMIN").orElse(null);
-        Role mentorRole = roleRepository.findByName("MENTOR").orElse(null);
-        Role studentRole = roleRepository.findByName("STUDENT").orElse(null);
 
         // 1. Admin
         User admin = userRepository.findByUsername("admin").orElse(null);
         if (admin == null) {
+            if (isProd) {
+                log.warn("[SECURITY] Running in production profile without active SUPER_ADMIN. Bootstrap is disabled (SUPER_ADMIN_BOOTSTRAP_ENABLED=false).");
+                return;
+            }
             Set<Role> roles = new HashSet<>();
             if (superAdminRole != null) roles.add(superAdminRole);
 
@@ -758,7 +803,7 @@ public class DataSeeder implements CommandLineRunner {
                     .enabled(true)
                     .emailVerified(true)
                     .build());
-            log.info("Default admin user created with SUPER_ADMIN role: admin / admin123");
+            log.info("Default development admin user verified: admin (local/test only)");
         } else if (superAdminRole != null && (admin.getRoles() == null || admin.getRoles().isEmpty())) {
             admin.getRoles().add(superAdminRole);
             admin.setRole("ROLE_SUPER_ADMIN");
@@ -770,6 +815,9 @@ public class DataSeeder implements CommandLineRunner {
         userRepository.findByUsername("student").ifPresent(userRepository::delete);
         userRepository.findByEmailIgnoreCase("mentor@axm-nexus.uz").ifPresent(userRepository::delete);
         userRepository.findByEmailIgnoreCase("student@axm-nexus.uz").ifPresent(userRepository::delete);
+
+        Role mentorRole = roleRepository.findByName("MENTOR").orElse(null);
+        Role studentRole = roleRepository.findByName("STUDENT").orElse(null);
 
         // 2. Real Mentor accounts with HEMIS ID (e.g. 32600001, 32600002)
         Set<Role> mentorRoles = new HashSet<>();

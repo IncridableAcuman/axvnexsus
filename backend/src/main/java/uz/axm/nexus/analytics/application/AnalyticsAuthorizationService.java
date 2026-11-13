@@ -5,15 +5,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.stereotype.Service;
-import uz.axm.nexus.classrooms.domain.StudyGroup;
 import uz.axm.nexus.classrooms.infrastructure.StudyGroupRepository;
 import uz.axm.nexus.mentors.domain.Mentor;
 import uz.axm.nexus.mentors.infrastructure.MentorRepository;
+import uz.axm.nexus.shared.application.ResourceOwnershipService;
 import uz.axm.nexus.shared.infrastructure.CurrentUserHelper;
-import uz.axm.nexus.users.domain.Student;
 import uz.axm.nexus.users.domain.User;
 import uz.axm.nexus.users.infrastructure.StudentRepository;
 import uz.axm.nexus.users.infrastructure.UserRepository;
+
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +26,7 @@ public class AnalyticsAuthorizationService {
     private final MentorRepository mentorRepository;
     private final StudyGroupRepository studyGroupRepository;
     private final CurrentUserHelper currentUserHelper;
+    private final ResourceOwnershipService resourceOwnershipService;
 
     /**
      * Tizimga kirgan foydalanuvchini faqat va faqat SecurityContext orqali xavfsiz aniqlash.
@@ -45,84 +47,31 @@ public class AnalyticsAuthorizationService {
         if (requester == null) {
             throw new AuthenticationCredentialsNotFoundException("Autentifikatsiya talab etiladi.");
         }
-
-        // Admins and Regional Coordinators have full access
-        if (isAdminOrCoordinator(requester)) {
-            return;
-        }
-
-        // Mentor can only view students in their assigned groups
-        if (isMentor(requester)) {
-            Student student = studentRepository.findById(targetStudentId)
-                    .orElseThrow(() -> new IllegalArgumentException("O'quvchi topilmadi: " + targetStudentId));
-
-            Mentor mentor = mentorRepository.findAll().stream()
-                    .filter(m -> (m.getEmail() != null && m.getEmail().equalsIgnoreCase(requester.getEmail())) ||
-                                 (m.getFullName() != null && m.getFullName().equalsIgnoreCase(requester.getFullName())))
-                    .findFirst().orElse(null);
-
-            if (mentor != null && student.getStudyGroup() != null && student.getStudyGroup().getMentor() != null) {
-                if (student.getStudyGroup().getMentor().getId().equals(mentor.getId())) {
-                    return;
-                }
-            }
-            if (student.getMentor() != null && mentor != null && student.getMentor().getId().equals(mentor.getId())) {
-                return;
-            }
-
-            throw new AccessDeniedException("Siz faqat o'zingizga biriktirilgan o'quvchilar hisobotini ko'rish huquqiga egasiz.");
-        }
-
-        // Student can ONLY view their own records
-        String role = normalizeRole(requester.getRole());
-        if ("STUDENT".equals(role)) {
-            Student student = studentRepository.findById(targetStudentId)
-                    .orElseThrow(() -> new IllegalArgumentException("O'quvchi topilmadi: " + targetStudentId));
-
-            boolean matches = (student.getPinfl() != null && requester.getUsername().equalsIgnoreCase(student.getPinfl()))
-                    || (student.getStudentIdNumber() != null && requester.getUsername().equalsIgnoreCase(student.getStudentIdNumber()))
-                    || (student.getFullName() != null && student.getFullName().equalsIgnoreCase(requester.getFullName()));
-
-            if (!matches) {
-                throw new AccessDeniedException("O'quvchi faqat o'zining shaxsiy ko'rsatkichlarini ko'rishga ruxsat etilgan.");
-            }
-            return;
-        }
-
-        throw new AccessDeniedException("Ushbu hisobotni ko'rish uchun ruxsat mavjud emas.");
+        resourceOwnershipService.verifyStudentAccess(targetStudentId);
     }
 
     public void validateGroupAccess(Long targetGroupId, User requester) {
         if (requester == null) {
             throw new AuthenticationCredentialsNotFoundException("Autentifikatsiya talab etiladi.");
         }
+        resourceOwnershipService.verifyGroupAccess(targetGroupId);
+    }
 
+    public void validateMentorAccess(Long targetMentorId, User requester) {
+        if (requester == null) {
+            throw new AuthenticationCredentialsNotFoundException("Autentifikatsiya talab etiladi.");
+        }
         if (isAdminOrCoordinator(requester)) {
             return;
         }
-
         if (isMentor(requester)) {
-            StudyGroup group = studyGroupRepository.findById(targetGroupId)
-                    .orElseThrow(() -> new IllegalArgumentException("Guruh topilmadi: " + targetGroupId));
-
-            Mentor mentor = mentorRepository.findAll().stream()
-                    .filter(m -> (m.getEmail() != null && m.getEmail().equalsIgnoreCase(requester.getEmail())) ||
-                                 (m.getFullName() != null && m.getFullName().equalsIgnoreCase(requester.getFullName())))
-                    .findFirst().orElse(null);
-
-            if (mentor != null && group.getMentor() != null && group.getMentor().getId().equals(mentor.getId())) {
+            Optional<Mentor> mentorOpt = resourceOwnershipService.getCurrentMentor();
+            if (mentorOpt.isPresent() && mentorOpt.get().getId().equals(targetMentorId)) {
                 return;
             }
-
-            throw new AccessDeniedException("Siz faqat o'zingiz mas'ul bo'lgan guruh hisobotlarini ko'rishingiz mumkin.");
+            throw new AccessDeniedException("Siz faqat o'zingizning mentorlik faoliyatingiz hisobotini ko'rishingiz mumkin.");
         }
-
-        String role = normalizeRole(requester.getRole());
-        if ("STUDENT".equals(role)) {
-            throw new AccessDeniedException("O'quvchilar to'liq guruh reytingi va hisobotlarini yuklab olish huquqiga ega emas.");
-        }
-
-        throw new AccessDeniedException("Ushbu guruh hisobotini ko'rish uchun ruxsat mavjud emas.");
+        throw new AccessDeniedException("Ushbu hisobotni ko'rish uchun ruxsat mavjud emas.");
     }
 
     public boolean isAdminOrCoordinator(User requester) {

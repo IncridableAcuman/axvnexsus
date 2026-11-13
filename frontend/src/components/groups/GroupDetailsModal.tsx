@@ -88,6 +88,26 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
     }
   };
 
+  const handleUnenrollStudent = async (studentId: number, studentName?: string) => {
+    if (!groupId) return;
+    const reason = window.prompt(
+      `${studentName || "O'quvchi"}ni guruh a'zoligidan chiqarish sababini kiriting (ixtiyoriy):`,
+      "O'z xohishiga binoan"
+    );
+    if (reason === null) return;
+
+    try {
+      setLoading(true);
+      await groupStructureApi.unenrollStudent(groupId, studentId, reason);
+      await loadDetail(groupId);
+      onRefreshParent();
+    } catch (err) {
+      console.error('Failed to unenroll student:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!groupId) return null;
 
   return (
@@ -156,7 +176,7 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                     <span>Xona / Filial</span>
                   </div>
                   <div className="text-xs font-bold text-foreground truncate">
-                    {detail.room} <span className="text-[11px] font-normal text-muted-foreground">({detail.branchLocation || 'Bosh filial'})</span>
+                    {detail.room} <span className="text-[11px] font-normal text-muted-foreground">({detail.branchName || detail.branchLocation || 'Bosh filial'})</span>
                   </div>
                 </div>
 
@@ -234,15 +254,25 @@ export const GroupDetailsModal: React.FC<GroupDetailsModalProps> = ({
                               {new Date(m.enrolledAt).toLocaleDateString()}
                             </TableCell>
                             <TableCell className="text-right py-3 border-0">
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => setTransferTarget(m)}
-                                className="h-7 text-xs rounded-lg border-0 bg-muted/60 hover:bg-muted"
-                                leftIcon={<ArrowRightLeft className="w-3 h-3" />}
-                              >
-                                Ko‘chirish
-                              </Button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => setTransferTarget(m)}
+                                  className="h-7 text-xs rounded-lg border-0 bg-muted/60 hover:bg-muted"
+                                  leftIcon={<ArrowRightLeft className="w-3 h-3" />}
+                                >
+                                  Ko‘chirish
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => m.studentId && handleUnenrollStudent(m.studentId, m.studentName || undefined)}
+                                  className="h-7 text-xs rounded-lg border-0 text-destructive bg-destructive/10 hover:bg-destructive/20"
+                                >
+                                  Chiqarish
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))

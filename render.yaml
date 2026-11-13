@@ -1,0 +1,81 @@
+# ==============================================================================
+# Render Infrastructure Blueprint — YANGIARIQ AQUA AI / AXV Nexus
+# Services:
+#   1. Backend Web Service: yangiariq-aqua-api (Spring Boot / Java 21 / Docker)
+#   2. Frontend Static Site: yangiariq-aqua (React 19 / Vite / Tailwind v4)
+# ==============================================================================
+
+services:
+  # ============================================================================
+  # Backend Web Service
+  # ============================================================================
+  - type: web
+    name: yangiariq-aqua-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: frankfurt
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+
+      # Database Configuration (Neon PostgreSQL)
+      # Can be supplied either via JDBC_DATABASE_URL or discrete credentials
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        value: axvhub
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL
+        value: "?sslmode=require&prepareThreshold=0"
+
+      # Security & JWT Configuration
+      - key: APP_JWT_SECRET
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://yangiariq-aqua.onrender.com
+      - key: APP_BASE_URL
+        value: https://yangiariq-aqua.onrender.com
+
+      # SuperAdmin Provisioning (Disabled by default in production)
+      - key: SUPER_ADMIN_BOOTSTRAP_ENABLED
+        value: "false"
+
+      # Application Controls
+      - key: ALLOW_PUBLIC_REGISTRATION
+        value: "false"
+      - key: CAPTCHA_REQUIRED
+        value: "true"
+      - key: APP_SEEDER_DEMO_DATA_ENABLED
+        value: "false"
+
+      # AI Provider
+      - key: AI_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+
+  # ============================================================================
+  # Frontend Static Site
+  # ============================================================================
+  - type: static
+    name: yangiariq-aqua
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    autoDeploy: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://yangiariq-aqua-api.onrender.com/api

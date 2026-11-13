@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import type { Schedule, Student, Mentor, StudyGroup } from '../../types'
 import { useTranslation } from '@/shared/i18n'
+import { useAdminDashboard } from '@/features/analytics'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -59,16 +60,17 @@ export interface AdminDashboardViewProps {
 }
 
 export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
-  currentDateFormatted,
-  schedules,
-  students,
-  mentors,
-  groups,
-  onOpenManualModal,
-  onOpenAiModal,
-  onNavigateTab,
+  currentDateFormatted = '',
+  schedules = [],
+  students = [],
+  mentors = [],
+  groups = [],
+  onOpenManualModal = () => {},
+  onOpenAiModal = () => {},
+  onNavigateTab = () => {},
 }) => {
   const { t } = useTranslation()
+  const { data: adminData } = useAdminDashboard()
   const [selectedGrade, setSelectedGrade] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
@@ -111,9 +113,9 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
       {
         id: 'schedules',
         title: t('dashboard.admin.kpiWeeklyLessons'),
-        value: schedules.length,
+        value: adminData?.totalScheduledLessons ?? schedules.length,
         subtitle: t('dashboard.admin.kpiWeeklyLessonsSub'),
-        trend: '+100% reja',
+        trend: adminData?.totalCompletedLessons !== undefined ? `${adminData.totalCompletedLessons} yakunlangan` : '+100% reja',
         icon: Calendar,
         iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
         badge: t('dashboard.admin.activeScheduleBadge'),
@@ -122,7 +124,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
       {
         id: 'students',
         title: t('dashboard.admin.kpiStudents'),
-        value: students.length,
+        value: adminData?.totalActiveStudents ?? students.length,
         subtitle: t('dashboard.admin.kpiStudentsSub'),
         trend: '100% qamrov',
         icon: Users,
@@ -133,7 +135,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
       {
         id: 'mentors',
         title: t('dashboard.admin.kpiMentors'),
-        value: mentors.length,
+        value: adminData?.totalMentors ?? mentors.length,
         subtitle: t('dashboard.admin.kpiMentorsSub'),
         trend: t('dashboard.admin.highExperience'),
         icon: Award,
@@ -144,7 +146,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
       {
         id: 'groups',
         title: t('dashboard.admin.kpiGroups'),
-        value: groups.length,
+        value: adminData?.totalGroups ?? groups.length,
         subtitle: t('dashboard.admin.kpiGroupsSub'),
         trend: '2026/2027',
         icon: Layers,
@@ -153,54 +155,53 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         actionTab: 'groups',
       },
     ],
-    [schedules.length, students.length, mentors.length, groups.length, t]
+    [adminData, schedules.length, students.length, mentors.length, groups.length, t]
   )
 
-  const attendanceDays = useMemo(
-    () => [
-      { day: t('schedule.days.monday'), rate: 98 },
-      { day: t('schedule.days.tuesday'), rate: 97 },
-      { day: t('schedule.days.wednesday'), rate: 99 },
-      { day: t('schedule.days.thursday'), rate: 96 },
-      { day: t('schedule.days.friday'), rate: 98 },
-      { day: t('schedule.days.saturday'), rate: 95 },
-    ],
-    [t]
-  )
+  const attendanceDays = useMemo(() => {
+    if (adminData?.weeklyAttendance && adminData.weeklyAttendance.length > 0) {
+      return adminData.weeklyAttendance.map((item) => ({
+        day: item.day,
+        rate: item.rate ?? 0,
+      }))
+    }
+    return [
+      { day: t('schedule.days.monday'), rate: 0 },
+      { day: t('schedule.days.tuesday'), rate: 0 },
+      { day: t('schedule.days.wednesday'), rate: 0 },
+      { day: t('schedule.days.thursday'), rate: 0 },
+      { day: t('schedule.days.friday'), rate: 0 },
+      { day: t('schedule.days.saturday'), rate: 0 },
+    ]
+  }, [adminData?.weeklyAttendance, t])
 
-  const itLabs = useMemo(
-    () => [
+  const itLabs = useMemo(() => {
+    if (adminData?.roomOccupancy && adminData.roomOccupancy.length > 0) {
+      return adminData.roomOccupancy.map((room) => ({
+        name: room.name,
+        used: room.used,
+        total: room.total,
+        percent: room.percent,
+        indicator: room.indicator || 'bg-blue-500',
+      }))
+    }
+    return [
       {
         name: 'IT Lab 1 — Web Full-Stack',
-        used: 24,
+        used: 0,
         total: 24,
-        percent: 100,
+        percent: 0,
         indicator: 'bg-blue-500',
       },
-      {
-        name: 'IT Lab 2 — Algoritmlash & C++',
-        used: 22,
-        total: 24,
-        percent: 92,
-        indicator: 'bg-indigo-500',
-      },
-      {
-        name: 'IT Lab 3 — Mobil Dasturlash',
-        used: 20,
-        total: 24,
-        percent: 83,
-        indicator: 'bg-purple-500',
-      },
-      {
-        name: 'IT Lab 4 — Sun’iy Intellekt & Data',
-        used: 24,
-        total: 24,
-        percent: 100,
-        indicator: 'bg-emerald-500',
-      },
-    ],
-    []
-  )
+    ]
+  }, [adminData?.roomOccupancy])
+
+  const totalSeatsInfo = useMemo(() => {
+    const totalUsed = itLabs.reduce((sum, lab) => sum + lab.used, 0)
+    const totalCap = itLabs.reduce((sum, lab) => sum + lab.total, 0)
+    const pct = totalCap > 0 ? Math.round((totalUsed / totalCap) * 1000) / 10 : 0
+    return { totalUsed, totalCap, pct }
+  }, [itLabs])
 
   return (
     <div className="space-y-7 animate-in fade-in duration-300">
@@ -428,7 +429,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                 </div>
               </div>
               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                97.2% {t('dashboard.admin.average')}
+                {adminData?.systemAttendanceRate !== undefined ? `${adminData.systemAttendanceRate}%` : '0%'} {t('dashboard.admin.average')}
               </span>
             </div>
 
@@ -471,7 +472,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                 </div>
               </div>
               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                90/96 {t('dashboard.admin.seatsCount')} (93.8%)
+                {totalSeatsInfo.totalUsed}/{totalSeatsInfo.totalCap} {t('dashboard.admin.seatsCount')} ({totalSeatsInfo.pct}%)
               </span>
             </div>
 

@@ -23,6 +23,7 @@ import {
   Activity,
   Zap,
   Flame,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +42,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useToast } from '@/shared/ui/toast/ToastContext';
 import { useOptionalAuth } from '@/features/auth/AuthContext';
+import { useCurrentStudent } from '@/features/auth/useCurrentStudent';
 import { assessmentApi, assignmentApi } from '@/api';
 import type {
   AssessmentDto,
@@ -80,8 +82,12 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
   const [loadingAssessments, setLoadingAssessments] = useState(true);
   const [selectedAssessment, setSelectedAssessment] = useState<AssessmentDto | null>(null);
 
-  // Test Taking Mode State
-  const activeStudentId = _students[0]?.id || 1;
+  // Current Authenticated Student Context
+  const { studentId: currentStudentId, isLoading: loadingStudent, hasProfile } = useCurrentStudent();
+  const activeStudentId = auth?.isStudent
+    ? (currentStudentId ?? undefined)
+    : (currentStudentId ?? (!auth ? _students[0]?.id : undefined));
+
   const [activeAttemptId, setActiveAttemptId] = useState<number | null>(null);
   const [showReview, setShowReview] = useState<boolean>(false);
   const [isTestTaking, setIsTestTaking] = useState(false);
@@ -97,20 +103,44 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     isCorrect: boolean;
     pointsEarned: number;
   }[]>([]);
+
+  const attemptsStorageKey = auth?.user?.id ? `axvhub_test_attempts_${auth.user.id}` : 'axvhub_test_attempts';
+
   const [latestAttempts, setLatestAttempts] = useState<Record<number, StudentAssessmentAttemptDto>>(() => {
     try {
-      const saved = localStorage.getItem('axvhub_test_attempts');
+      const saved = localStorage.getItem(attemptsStorageKey);
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
     }
   });
 
+  // Sync authenticated student attempts from backend
+  useEffect(() => {
+    if (auth?.isStudent) {
+      assessmentApi.getMyAttempts()
+        .then((res) => {
+          if (res.data) {
+            const attemptsMap: Record<number, StudentAssessmentAttemptDto> = {};
+            res.data.forEach((att) => {
+              if (att.assessmentId) {
+                attemptsMap[att.assessmentId] = att;
+              }
+            });
+            setLatestAttempts((prev) => ({ ...prev, ...attemptsMap }));
+          }
+        })
+        .catch((err) => {
+          console.warn('Could not load student attempts from backend:', err);
+        });
+    }
+  }, [auth?.isStudent, currentStudentId]);
+
   const saveAttemptResult = (quizId: number, attempt: StudentAssessmentAttemptDto) => {
     setLatestAttempts((prev) => {
       const updated = { ...prev, [quizId]: attempt };
       try {
-        localStorage.setItem('axvhub_test_attempts', JSON.stringify(updated));
+        localStorage.setItem(attemptsStorageKey, JSON.stringify(updated));
       } catch (err) {
         // Ignore localStorage quota or private-browsing errors
         void err;
@@ -362,7 +392,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     const resultRecord: StudentAssessmentAttemptDto = {
       id: backendResult?.id || Date.now(),
       assessmentId: quizId,
-      studentId: activeStudentId,
+      studentId: activeStudentId ?? (backendResult?.studentId ?? 0),
       attemptNumber: backendResult?.attemptNumber || (latestAttempts[quizId] ? 2 : 1),
       startedAt: backendResult?.startedAt || new Date().toISOString(),
       submittedAt: new Date().toISOString(),
@@ -457,7 +487,7 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     try {
       setSubmittingHomework(true);
       await assignmentApi.submit(selectedAssignmentForSubmit.id, {
-        studentId: 1,
+        studentId: activeStudentId,
         submissionText: homeworkText,
         fileUrl: homeworkUrl,
       });
@@ -669,6 +699,22 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
           </div>
         </div>
       </div>
+
+      {auth?.isStudent && !loadingStudent && !hasProfile && (
+        <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-card-foreground">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h3 className="font-semibold text-sm text-foreground">
+                O‘quvchi profili topilmadi
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Tizimga kirgan foydalanuvchi hisobingizga (<strong>{auth.user?.username || auth.user?.email}</strong>) biriktirilgan o‘quvchi profili mavjud emas. Testlarni topshirish va baholarni ko‘rish uchun filial ma’muriyati yoki koordinatori bilan bog‘laning.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================
           2. EXECUTIVE KPI CARDS (Soft, Modern, Borderless Design)

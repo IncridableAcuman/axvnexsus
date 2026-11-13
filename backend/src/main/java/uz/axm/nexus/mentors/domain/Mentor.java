@@ -3,6 +3,7 @@ package uz.axm.nexus.mentors.domain;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
+import uz.axm.nexus.branches.domain.Branch;
 import uz.axm.nexus.shared.domain.BaseEntity;
 import uz.axm.nexus.users.domain.User;
 
@@ -31,6 +32,10 @@ public class Mentor extends BaseEntity {
     private String email;
 
     private String branchLocation; // e.g. "IT Park Yangiariq"
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
 
     @Column(columnDefinition = "TEXT")
     private String bio;

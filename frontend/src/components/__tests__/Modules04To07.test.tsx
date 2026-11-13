@@ -99,6 +99,21 @@ vi.mock('@/api', () => ({
     getGroupHistory: vi.fn().mockResolvedValue({ data: { data: [] } }),
     updateStatus: vi.fn().mockResolvedValue({ data: { success: true } }),
   },
+  branchApi: {
+    getAll: vi.fn().mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: 1,
+            name: 'IT Park Yangiariq',
+            code: 'ITP-YANGIARIQ',
+            region: 'Xorazm',
+            status: 'ACTIVE',
+          },
+        ],
+      },
+    }),
+  },
   mentorProfileApi: {
     getPublicProfiles: vi.fn().mockResolvedValue({
       data: {

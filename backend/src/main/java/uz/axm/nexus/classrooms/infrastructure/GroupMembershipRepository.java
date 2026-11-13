@@ -14,6 +14,8 @@ public interface GroupMembershipRepository extends JpaRepository<GroupMembership
     List<GroupMembership> findByStudentId(Long studentId);
     List<GroupMembership> findByStudentIdOrderByEnrolledAtDesc(Long studentId);
     Optional<GroupMembership> findByStudentIdAndStatus(Long studentId, String status);
+    Optional<GroupMembership> findByStudentIdAndGroupIdAndStatus(Long studentId, Long groupId, String status);
     boolean existsByStudentIdAndGroupIdAndStatus(Long studentId, Long groupId, String status);
     boolean existsByStudentIdAndStatus(Long studentId, String status);
+    long countByGroupIdAndStatus(Long groupId, String status);
 }

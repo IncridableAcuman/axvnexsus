@@ -33,14 +33,15 @@ public class StudyGroupController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('groups.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'REGIONAL_COORDINATOR', 'COORDINATOR', 'MENTOR', 'STUDENT', 'OBSERVER')")
-    @Operation(summary = "Guruhlar ro'yxatini filtrlash (sinf, mentor, status, qidiruv)")
+    @Operation(summary = "Guruhlar ro'yxatini filtrlash (sinf, mentor, status, qidiruv, filial)")
     public ResponseEntity<List<StudyGroup>> getGroups(
             @RequestParam(required = false) String gradeLevel,
             @RequestParam(required = false) Long mentorId,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String search
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long branchId
     ) {
-        return ResponseEntity.ok(educationStructureService.getGroups(gradeLevel, mentorId, status, search));
+        return ResponseEntity.ok(educationStructureService.getGroups(gradeLevel, mentorId, status, search, branchId));
     }
 
     @GetMapping("/{id}")
@@ -60,11 +61,27 @@ public class StudyGroupController {
     public ResponseEntity<ApiResponse<StudyGroup>> createGroup(
             @Valid @RequestBody StudyGroup group,
             @RequestParam(required = false) Long academicPeriodId,
-            @RequestParam(required = false) Long mentorId
+            @RequestParam(required = false) Long mentorId,
+            @RequestParam(required = false) Long branchId
     ) {
-        StudyGroup created = educationStructureService.createGroup(group, academicPeriodId, mentorId);
+        StudyGroup created = educationStructureService.createGroup(group, academicPeriodId, mentorId, branchId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Guruh muvaffaqiyatli ochildi", created));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('groups.manage') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN')")
+    @Operation(summary = "Ta'lim guruhini tahrirlash")
+    public ResponseEntity<ApiResponse<StudyGroup>> updateGroup(
+            @PathVariable Long id,
+            @Valid @RequestBody StudyGroup group,
+            @RequestParam(required = false) Long academicPeriodId,
+            @RequestParam(required = false) Long mentorId,
+            @RequestParam(required = false) Long branchId
+    ) {
+        String actor = currentUserHelper.getCurrentUsername();
+        StudyGroup updated = educationStructureService.updateGroup(id, group, academicPeriodId, mentorId, branchId, actor);
+        return ResponseEntity.ok(ApiResponse.ok("Guruh ma'lumotlari yangilandi", updated));
     }
 
     @PostMapping("/{id}/students")
@@ -80,6 +97,19 @@ public class StudyGroupController {
                 .body(ApiResponse.ok("O'quvchi guruhga biriktirildi", membership));
     }
 
+    @DeleteMapping("/{id}/students/{studentId}")
+    @PreAuthorize("hasAuthority('groups.manage') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
+    @Operation(summary = "O'quvchini guruh a'zoligidan chiqarish")
+    public ResponseEntity<ApiResponse<GroupMembershipDto>> unenrollStudent(
+            @PathVariable Long id,
+            @PathVariable Long studentId,
+            @RequestParam(required = false) String reason
+    ) {
+        String actor = currentUserHelper.getCurrentUsername();
+        GroupMembershipDto result = educationStructureService.unenrollStudent(id, studentId, reason, actor);
+        return ResponseEntity.ok(ApiResponse.ok("O'quvchi guruhdan chiqarildi", result));
+    }
+
     @PostMapping("/{id}/students/{studentId}/transfer")
     @PreAuthorize("hasAuthority('groups.manage') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN')")
     @Operation(summary = "O'quvchini boshqa guruhga ko'chirish (tarixni saqlagan holda)")
@@ -91,6 +121,18 @@ public class StudyGroupController {
         String actor = currentUserHelper.getCurrentUsername();
         GroupMembershipDto result = educationStructureService.transferStudent(id, studentId, request, actor);
         return ResponseEntity.ok(ApiResponse.ok("O'quvchi muvaffaqiyatli ko'chirildi", result));
+    }
+
+    @PutMapping("/{id}/mentor/{mentorId}")
+    @PreAuthorize("hasAuthority('groups.manage') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN')")
+    @Operation(summary = "Guruhga yangi mentor biriktirish")
+    public ResponseEntity<ApiResponse<StudyGroup>> assignMentor(
+            @PathVariable Long id,
+            @PathVariable Long mentorId
+    ) {
+        String actor = currentUserHelper.getCurrentUsername();
+        StudyGroup updated = educationStructureService.assignMentor(id, mentorId, actor);
+        return ResponseEntity.ok(ApiResponse.ok("Mentor biriktirildi", updated));
     }
 
     @GetMapping("/{id}/history")

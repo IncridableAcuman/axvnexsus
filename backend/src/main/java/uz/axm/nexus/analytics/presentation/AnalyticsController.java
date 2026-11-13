@@ -35,6 +35,40 @@ public class AnalyticsController {
         return ResponseEntity.ok(analyticsService.getSystemOverview(from, to, requester));
     }
 
+    @GetMapping("/dashboard/admin")
+    @PreAuthorize("hasAuthority('analytics.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'REGIONAL_COORDINATOR', 'COORDINATOR')")
+    @Operation(summary = "Admin boshqaruv paneli uchun integratsiyalashgan metrikalar")
+    public ResponseEntity<AdminDashboardDto> getAdminDashboard(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long groupId
+    ) {
+        User requester = authorizationService.resolveCurrentUser();
+        return ResponseEntity.ok(analyticsService.getAdminDashboard(from, to, groupId, requester));
+    }
+
+    @GetMapping("/dashboard/mentor")
+    @PreAuthorize("hasAuthority('analytics.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
+    @Operation(summary = "Mentor boshqaruv paneli uchun autentifikatsiya qilingan mentor ma'lumotlari")
+    public ResponseEntity<MentorDashboardDto> getMentorDashboard(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        User requester = authorizationService.resolveCurrentUser();
+        return ResponseEntity.ok(analyticsService.getMentorDashboard(from, to, requester));
+    }
+
+    @GetMapping("/dashboard/student")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "O'quvchi boshqaruv paneli uchun shaxsiy haqiqiy ko'rsatkichlar")
+    public ResponseEntity<StudentDashboardDto> getStudentDashboard(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        User requester = authorizationService.resolveCurrentUser();
+        return ResponseEntity.ok(analyticsService.getStudentDashboard(from, to, requester));
+    }
+
     @GetMapping("/student/{studentId}")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Individual o'quvchi rivojlanish hisoboti va davomat statistikasi")

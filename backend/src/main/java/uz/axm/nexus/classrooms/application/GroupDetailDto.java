@@ -19,6 +19,8 @@ public class GroupDetailDto {
     private String gradeLevel;
     private String subject;
     private String branchLocation;
+    private Long branchId;
+    private String branchName;
     private String scheduleDays;
     private String scheduleTime;
     private String room;

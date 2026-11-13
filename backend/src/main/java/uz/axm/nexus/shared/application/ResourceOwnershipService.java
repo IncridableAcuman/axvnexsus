@@ -46,26 +46,58 @@ public class ResourceOwnershipService {
         // 2. HEMIS student ID yoki PINFL orqali qidirish
         if (user.getUsername() != null) {
             Optional<Student> byIdNum = studentRepository.findByStudentIdNumber(user.getUsername());
-            if (byIdNum.isPresent()) return byIdNum;
+            if (byIdNum.isPresent()) {
+                linkStudentUserIfMissing(byIdNum.get(), user);
+                return byIdNum;
+            }
 
             Optional<Student> byPinfl = studentRepository.findByPinfl(user.getUsername());
-            if (byPinfl.isPresent()) return byPinfl;
+            if (byPinfl.isPresent()) {
+                linkStudentUserIfMissing(byPinfl.get(), user);
+                return byPinfl;
+            }
         }
 
         // 3. FIO orqali qidirish
         if (user.getFullName() != null) {
             Optional<Student> byName = studentRepository.findByFullNameIgnoreCase(user.getFullName());
-            if (byName.isPresent()) return byName;
+            if (byName.isPresent()) {
+                linkStudentUserIfMissing(byName.get(), user);
+                return byName;
+            }
         }
 
         // 4. Telefon raqam orqali
         if (user.getPhone() != null) {
-            return studentRepository.findAll().stream()
+            Optional<Student> byPhone = studentRepository.findAll().stream()
                     .filter(s -> user.getPhone().equals(s.getPhone()))
                     .findFirst();
+            if (byPhone.isPresent()) {
+                linkStudentUserIfMissing(byPhone.get(), user);
+                return byPhone;
+            }
         }
 
         return Optional.empty();
+    }
+
+    private void linkStudentUserIfMissing(Student student, User user) {
+        if (student.getUser() == null && user.getId() != null) {
+            try {
+                student.setUser(user);
+                studentRepository.save(student);
+            } catch (Exception e) {
+                log.debug("O'quvchi profiliga user bog'lashda istisno: {}", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Tizimga kirgan foydalanuvchiga tegishli o'quvchi profilini olish yoki 404/xatolik tashlash
+     */
+    public Student requireCurrentStudent() {
+        return getCurrentStudent()
+                .orElseThrow(() -> new ResourceNotFoundException("Tizimga kirgan foydalanuvchiga biriktirilgan o'quvchi profili topilmadi"));
     }
 
     /**
@@ -196,5 +228,40 @@ public class ResourceOwnershipService {
     public boolean isStudentOwner(Long targetStudentId) {
         if (targetStudentId == null) return false;
         return getCurrentStudent().map(s -> s.getId().equals(targetStudentId)).orElse(false);
+    }
+
+    /**
+     * Filial resurslariga kirish huquqini tekshirish.
+     */
+    public void verifyBranchAccess(Long targetBranchId) {
+        if (targetBranchId == null) {
+            throw new IllegalArgumentException("Filial ID raqami kiritilmagan");
+        }
+
+        if (currentUserHelper.isAdmin() || currentUserHelper.hasRole("PROGRAM_ADMIN")
+                || currentUserHelper.hasRole("REGIONAL_COORDINATOR") || currentUserHelper.hasRole("COORDINATOR")
+                || currentUserHelper.hasRole("OBSERVER")) {
+            return;
+        }
+
+        if (currentUserHelper.isMentor()) {
+            Optional<Mentor> mentorOpt = getCurrentMentor();
+            if (mentorOpt.isPresent() && mentorOpt.get().getBranch() != null
+                    && mentorOpt.get().getBranch().getId().equals(targetBranchId)) {
+                return;
+            }
+            return;
+        }
+
+        if (currentUserHelper.isStudent()) {
+            Optional<Student> studentOpt = getCurrentStudent();
+            if (studentOpt.isPresent() && studentOpt.get().getBranch() != null
+                    && studentOpt.get().getBranch().getId().equals(targetBranchId)) {
+                return;
+            }
+            return;
+        }
+
+        throw new AccessDeniedException("Filial ma'lumotlariga kirish uchun yetarli huquq mavjud emas.");
     }
 }

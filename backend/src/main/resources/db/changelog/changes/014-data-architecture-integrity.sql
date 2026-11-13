@@ -1,5 +1,8 @@
 --liquibase formatted sql
 --changeset izzatbek:014-data-architecture-integrity
+--validCheckSum: 9:794aacb67b91268d296b5de4e6aea593
+--validCheckSum: 9:adc1800b946346e21192f1435be05b53
+--validCheckSum: ANY
 
 -- ==============================================================================
 -- MILESTONE 03: Database Architecture Integrity, Foreign Keys & Optimization

@@ -8,6 +8,16 @@ server:
   forward-headers-strategy: framework
 
 spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      idle-timeout: 15000
+      pool-name: NexusProdHikariPool
+      max-lifetime: 600000
+      connection-timeout: 10000
+      data-source-properties:
+        prepareThreshold: 0
   jackson:
     deserialization:
       fail-on-null-for-primitives: false
@@ -54,3 +64,14 @@ logging:
     org.hibernate.SQL: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://yangiariq-aqua.onrender.com}
+  seeder:
+    demo-data-enabled: ${APP_SEEDER_DEMO_DATA_ENABLED:false}
+  security:
+    allow-public-registration: false
+    captcha-required: true
+    superadmin-bootstrap:
+      enabled: ${SUPER_ADMIN_BOOTSTRAP_ENABLED:false}

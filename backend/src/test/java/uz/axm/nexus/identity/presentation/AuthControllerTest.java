@@ -39,6 +39,12 @@ class AuthControllerTest {
     @Autowired
     private uz.axm.nexus.notifications.application.EmailRateLimiterService emailRateLimiterService;
 
+    @Autowired
+    private uz.axm.nexus.users.infrastructure.StudentRepository studentRepository;
+
+    @Autowired
+    private uz.axm.nexus.mentors.infrastructure.MentorRepository mentorRepository;
+
     @BeforeEach
     void setUp() {
         emailRateLimiterService.resetAll();
@@ -46,6 +52,14 @@ class AuthControllerTest {
         emailVerificationTokenRepository.deleteAll();
         userRepository.findAll().forEach(user -> {
             if (!"admin".equals(user.getUsername())) {
+                studentRepository.findByUserId(user.getId()).ifPresent(s -> {
+                    s.setUser(null);
+                    studentRepository.save(s);
+                });
+                mentorRepository.findByUserId(user.getId()).ifPresent(m -> {
+                    m.setUser(null);
+                    mentorRepository.save(m);
+                });
                 userRepository.delete(user);
             }
         });

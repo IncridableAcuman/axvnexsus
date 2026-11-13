@@ -10,6 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import uz.axm.nexus.identity.application.ResetPasswordResultDto;
 import uz.axm.nexus.shared.application.ApiResponse;
+import uz.axm.nexus.shared.application.ResourceOwnershipService;
 import uz.axm.nexus.users.application.CreateStudentRequest;
 import uz.axm.nexus.users.application.StudentProvisionDto;
 import uz.axm.nexus.users.application.StudentService;
@@ -18,12 +19,20 @@ import uz.axm.nexus.users.domain.Student;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/students")
+@RequestMapping({"/api/students", "/api/v1/students"})
 @RequiredArgsConstructor
 @Tag(name = "Students", description = "O'quvchilarni boshqarish va HEMIS hisoblarini provizion qilish API lari")
 public class StudentController {
 
     private final StudentService studentService;
+    private final ResourceOwnershipService resourceOwnershipService;
+
+    @GetMapping("/me")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Tizimga kirgan o'quvchining o'z shaxsiy profilini olish")
+    public ResponseEntity<Student> getCurrentStudent() {
+        return ResponseEntity.ok(resourceOwnershipService.requireCurrentStudent());
+    }
 
     @GetMapping
     @PreAuthorize("hasAuthority('users.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'REGIONAL_COORDINATOR', 'COORDINATOR', 'MENTOR', 'OBSERVER')")

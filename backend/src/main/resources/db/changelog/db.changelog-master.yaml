@@ -27,3 +27,5 @@ databaseChangeLog:
       file: db/changelog/changes/013-lesson-presentation-slides.sql
   - include:
       file: db/changelog/changes/014-data-architecture-integrity.sql
+  - include:
+      file: db/changelog/changes/015-branches-and-classes-management.sql

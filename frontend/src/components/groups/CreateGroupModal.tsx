@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,14 +10,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { groupStructureApi } from '@/api';
-import type { Mentor } from '@/types';
+import { groupStructureApi, branchApi } from '@/api';
+import type { Mentor, BranchDto } from '@/types';
 import { PlusCircle } from 'lucide-react';
 
 interface CreateGroupModalProps {
   isOpen: boolean;
   onClose: () => void;
   mentors: Mentor[];
+  branches?: BranchDto[];
   onSuccess: () => void;
 }
 
@@ -25,14 +26,27 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
   isOpen,
   onClose,
   mentors,
+  branches: propBranches,
   onSuccess,
 }) => {
+  const [branches, setBranches] = useState<BranchDto[]>(propBranches || []);
+
+  useEffect(() => {
+    if (propBranches && propBranches.length > 0) {
+      setBranches(propBranches);
+    } else if (branchApi && typeof branchApi.getAll === 'function') {
+      branchApi.getAll().then((res) => {
+        if (res?.data?.data) setBranches(res.data.data);
+      }).catch(() => {});
+    }
+  }, [propBranches]);
   const [name, setName] = useState('');
   const [gradeLevel, setGradeLevel] = useState('8-sinf');
   const [roomLocation, setRoomLocation] = useState('Xona 101');
   const [lessonDays, setLessonDays] = useState('Dush-Chor-Jum');
   const [lessonTime, setLessonTime] = useState('14:00 - 16:00');
   const [mentorId, setMentorId] = useState<number | undefined>(mentors[0]?.id);
+  const [branchId, setBranchId] = useState<number | undefined>();
   const [maxCapacity, setMaxCapacity] = useState<number>(16);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +71,8 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
           status: 'ACTIVE',
         },
         1, // Default academic period
-        mentorId
+        mentorId,
+        branchId
       );
       setName('');
       onSuccess();
@@ -83,7 +98,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
             <div>
               <DialogTitle className="text-lg font-bold">Yangi o'quv guruhi yaratish</DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                8–11-sinf o‘quvchilari uchun yangi dars guruhini ochish va mentor biriktirish
+                8–11-sinf o‘quvchilari uchun yangi dars guruhini ochish, filial va mentor biriktirish
               </DialogDescription>
             </div>
           </div>
@@ -98,7 +113,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
 
           <div className="space-y-1.5">
             <Label htmlFor="group-name" className="text-xs font-semibold text-foreground">
-              Guruh nomi <span className="text-destructive">*</span>
+              Guruh nomi (Kodi) <span className="text-destructive">*</span>
             </Label>
             <Input
               id="group-name"
@@ -108,6 +123,26 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               required
               className="text-xs h-9 rounded-xl bg-muted/40 border-0 focus-visible:ring-1 focus-visible:ring-primary shadow-none"
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="assigned-branch" className="text-xs font-semibold text-foreground">
+              Biriktirilgan Filial
+            </Label>
+            <select
+              id="assigned-branch"
+              value={branchId ?? ''}
+              onChange={(e) => setBranchId(e.target.value ? Number(e.target.value) : undefined)}
+              aria-label="Biriktirilgan Filial"
+              className="flex h-9 w-full rounded-xl border-0 bg-muted/40 px-3 py-1 text-xs text-foreground shadow-none transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer font-medium"
+            >
+              <option value="">Filialsiz / Asosiy filial</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.code})
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -220,18 +255,17 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
               size="sm"
               onClick={onClose}
               disabled={loading}
-              className="rounded-xl text-xs border-0 bg-muted/60 hover:bg-muted text-foreground"
+              className="text-xs rounded-xl"
             >
               Bekor qilish
             </Button>
             <Button
               type="submit"
-              variant="default"
               size="sm"
               disabled={loading}
-              className="rounded-xl text-xs font-semibold border-0"
+              className="text-xs rounded-xl font-medium"
             >
-              {loading ? 'Saqlanmoqda...' : 'Guruhni yaratish'}
+              {loading ? "Guruh ochilmoqda..." : "Guruhni ochish"}
             </Button>
           </DialogFooter>
         </form>

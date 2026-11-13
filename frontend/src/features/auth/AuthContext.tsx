@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { AuthUser, LoginRequest, RegisterRequest, AuthResponse, VerifyEmailRequest } from '@/types';
 import { authApi } from '@/api';
+import { queryClient } from '@/app/providers/QueryProvider';
 import {
   Dialog,
   DialogContent,
@@ -87,6 +88,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (data: LoginRequest): Promise<AuthResponse> => {
+    try {
+      queryClient.clear();
+    } catch {
+      // ignore
+    }
     const res = await authApi.login(data);
     const authData = res.data.data;
     const authUser: AuthUser = {
@@ -106,6 +112,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const register = async (data: RegisterRequest): Promise<AuthResponse> => {
+    try {
+      queryClient.clear();
+    } catch {
+      // ignore
+    }
     const res = await authApi.register(data);
     const authData = res.data.data;
     const authUser: AuthUser = {
@@ -160,18 +171,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLogoutConfirmOpen(false);
   };
 
-  const confirmLogout = () => {
+  const clearUserData = () => {
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('axvhub_test_attempts');
+    try {
+      queryClient.clear();
+    } catch {
+      // ignore
+    }
     setIsLogoutConfirmOpen(false);
     setIsProfileModalOpen(false);
   };
 
+  const confirmLogout = () => {
+    clearUserData();
+  };
+
   const forceLogout = () => {
-    setUser(null);
-    localStorage.removeItem(STORAGE_KEY);
-    setIsLogoutConfirmOpen(false);
-    setIsProfileModalOpen(false);
+    clearUserData();
   };
 
   const logout = () => {

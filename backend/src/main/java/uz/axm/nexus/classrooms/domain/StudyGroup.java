@@ -2,6 +2,7 @@ package uz.axm.nexus.classrooms.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import uz.axm.nexus.branches.domain.Branch;
 import uz.axm.nexus.education.domain.AcademicPeriod;
 import uz.axm.nexus.mentors.domain.Mentor;
 import uz.axm.nexus.shared.domain.BaseEntity;
@@ -24,6 +25,10 @@ public class StudyGroup extends BaseEntity {
     private String subject; // "Web Full-Stack Development", "Computer Science"
 
     private String branchLocation; // "IT Park Yangiariq"
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
 
     private String scheduleDays; // "Seshanba-Payshanba-Shanba"
 
