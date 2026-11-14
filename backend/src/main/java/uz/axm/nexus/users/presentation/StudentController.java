@@ -8,12 +8,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import uz.axm.nexus.classrooms.application.GroupMembershipDto;
 import uz.axm.nexus.identity.application.ResetPasswordResultDto;
 import uz.axm.nexus.shared.application.ApiResponse;
 import uz.axm.nexus.shared.application.ResourceOwnershipService;
-import uz.axm.nexus.users.application.CreateStudentRequest;
-import uz.axm.nexus.users.application.StudentProvisionDto;
-import uz.axm.nexus.users.application.StudentService;
+import uz.axm.nexus.shared.infrastructure.CurrentUserHelper;
+import uz.axm.nexus.users.application.*;
 import uz.axm.nexus.users.domain.Student;
 
 import java.util.List;
@@ -26,6 +26,7 @@ public class StudentController {
 
     private final StudentService studentService;
     private final ResourceOwnershipService resourceOwnershipService;
+    private final CurrentUserHelper currentUserHelper;
 
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
@@ -36,12 +37,18 @@ public class StudentController {
 
     @GetMapping
     @PreAuthorize("hasAuthority('users.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'REGIONAL_COORDINATOR', 'COORDINATOR', 'MENTOR', 'OBSERVER')")
-    @Operation(summary = "O'quvchilar ro'yxatini olish (sinflar, mentor yoki guruh filtri bilan)")
+    @Operation(summary = "O'quvchilar ro'yxatini olish (sinflar, mentor, guruh, filial, status yoki qidiruv filtri bilan)")
     public ResponseEntity<List<Student>> getStudents(
             @RequestParam(required = false) String gradeLevel,
             @RequestParam(required = false) Long mentorId,
-            @RequestParam(required = false) Long groupId
+            @RequestParam(required = false) Long groupId,
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String search
     ) {
+        if (branchId != null || (status != null && !status.isBlank()) || (search != null && !search.isBlank())) {
+            return ResponseEntity.ok(studentService.searchStudents(gradeLevel, mentorId, groupId, branchId, status, search));
+        }
         if (gradeLevel != null && !gradeLevel.isBlank()) {
             return ResponseEntity.ok(studentService.getByGradeLevel(gradeLevel));
         }
@@ -52,6 +59,61 @@ public class StudentController {
             return ResponseEntity.ok(studentService.getByGroupId(groupId));
         }
         return ResponseEntity.ok(studentService.getAllStudents());
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('users.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'REGIONAL_COORDINATOR', 'COORDINATOR', 'MENTOR', 'STUDENT')")
+    @Operation(summary = "Alohida o'quvchi ma'lumotlarini (barcha bog'liqliklari bilan) olish")
+    public ResponseEntity<ApiResponse<StudentDetailDto>> getStudentById(@PathVariable Long id) {
+        resourceOwnershipService.verifyStudentAccess(id);
+        StudentDetailDto dto = studentService.getStudentDetailById(id);
+        return ResponseEntity.ok(ApiResponse.ok("O'quvchi ma'lumotlari olindi", dto));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('users.update') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
+    @Operation(summary = "O'quvchi ma'lumotlarini tahrirlash (guruh, filial, status va shaxsiy ma'lumotlar)")
+    public ResponseEntity<ApiResponse<StudentDetailDto>> updateStudent(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateStudentRequest request
+    ) {
+        String actor = currentUserHelper.getCurrentUsername();
+        StudentDetailDto updated = studentService.updateStudent(id, request, actor);
+        return ResponseEntity.ok(ApiResponse.ok("O'quvchi ma'lumotlari muvaffaqiyatli yangilandi", updated));
+    }
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('users.update') or hasAuthority('users.disable') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN')")
+    @Operation(summary = "O'quvchi holatini o'zgartirish (ACTIVE, INACTIVE, ARCHIVED)")
+    public ResponseEntity<ApiResponse<StudentDetailDto>> updateStatus(
+            @PathVariable Long id,
+            @RequestParam String status,
+            @RequestParam(required = false) String reason
+    ) {
+        String actor = currentUserHelper.getCurrentUsername();
+        StudentDetailDto updated = studentService.updateStudentStatus(id, status, reason, actor);
+        return ResponseEntity.ok(ApiResponse.ok("O'quvchi holati muvaffaqiyatli yangilandi", updated));
+    }
+
+    @PostMapping("/{id}/archive")
+    @PreAuthorize("hasAuthority('users.disable') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN')")
+    @Operation(summary = "O'quvchini xavfsiz arxivlash (tarixiy akademik ma'lumotlarni saqlab qolgan holda)")
+    public ResponseEntity<ApiResponse<StudentDetailDto>> archiveStudent(
+            @PathVariable Long id,
+            @RequestParam(required = false) String reason
+    ) {
+        String actor = currentUserHelper.getCurrentUsername();
+        StudentDetailDto archived = studentService.archiveStudent(id, reason, actor);
+        return ResponseEntity.ok(ApiResponse.ok("O'quvchi muvaffaqiyatli arxivlandi", archived));
+    }
+
+    @GetMapping("/{id}/group-history")
+    @PreAuthorize("hasAuthority('users.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR', 'STUDENT')")
+    @Operation(summary = "O'quvchining barcha ta'lim guruhlari bo'yicha a'zolik va ko'chish tarixini olish")
+    public ResponseEntity<ApiResponse<List<GroupMembershipDto>>> getStudentHistory(@PathVariable Long id) {
+        resourceOwnershipService.verifyStudentAccess(id);
+        List<GroupMembershipDto> history = studentService.getStudentHistory(id);
+        return ResponseEntity.ok(ApiResponse.ok("O'quvchining guruh tarixi olindi", history));
     }
 
     @PostMapping
@@ -80,7 +142,7 @@ public class StudentController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('users.disable') or hasAnyRole('SUPER_ADMIN', 'ADMIN')")
-    @Operation(summary = "O'quvchini tizimdan o'chirish")
+    @Operation(summary = "O'quvchini tizimdan o'chirish (bog'liqliklar bo'lsa avtomatik xavfsiz arxivlanadi)")
     public ResponseEntity<Void> deleteStudent(@PathVariable Long id) {
         studentService.deleteStudent(id);
         return ResponseEntity.noContent().build();

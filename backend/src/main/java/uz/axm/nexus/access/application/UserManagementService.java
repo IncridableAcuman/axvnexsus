@@ -5,15 +5,22 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import uz.axm.nexus.access.domain.Role;
+import uz.axm.nexus.access.infrastructure.RoleRepository;
+import uz.axm.nexus.audit.application.AuditService;
+import uz.axm.nexus.shared.application.BusinessException;
 import uz.axm.nexus.shared.application.PageResponse;
 import uz.axm.nexus.shared.application.ResourceNotFoundException;
 import uz.axm.nexus.users.domain.User;
 import uz.axm.nexus.users.infrastructure.UserRepository;
 
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -21,7 +28,10 @@ import java.util.stream.Collectors;
 public class UserManagementService {
 
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
     private final RbacService rbacService;
+    private final PasswordEncoder passwordEncoder;
+    private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public PageResponse<UserDto> searchUsers(String query, String role, Boolean enabled, int page, int size, String sortBy, String sortDir) {
@@ -99,5 +109,102 @@ public class UserManagementService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Foydalanuvchi topilmadi: #" + id));
         return rbacService.toUserDto(user);
+    }
+
+    @Transactional
+    public UserProvisionDto createUser(CreateUserRequest request, String actorUsername) {
+        String fullName = request.getFullName().trim();
+        String primaryRole = rbacService.normalizeRoleName(request.getPrimaryRole());
+
+        // Privilege escalation check: only SUPER_ADMIN can create another SUPER_ADMIN or ADMIN
+        if (primaryRole.equals("SUPER_ADMIN") || primaryRole.equals("ADMIN")) {
+            if (actorUsername != null && !actorUsername.equalsIgnoreCase("admin") && !actorUsername.equalsIgnoreCase("system")) {
+                User actor = userRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(actorUsername, actorUsername).orElse(null);
+                if (actor != null && !rbacService.isSuperAdmin(actor)) {
+                    throw new BusinessException("Ruxsatsiz imtiyozlarni oshirish taqiqlanadi: Faqat Super Administrator administrator hisoblarini yarata oladi");
+                }
+            }
+        }
+
+        // Resolve username
+        String username = request.getUsername();
+        if (username == null || username.trim().isBlank()) {
+            if (request.getEmail() != null && !request.getEmail().trim().isBlank()) {
+                username = request.getEmail().trim().toLowerCase();
+            } else {
+                username = "staff_" + (System.currentTimeMillis() % 1000000);
+            }
+        } else {
+            username = username.trim();
+        }
+
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
+            throw new BusinessException("Ushbu username (" + username + ") tizimda allaqachon mavjud");
+        }
+
+        if (request.getEmail() != null && !request.getEmail().trim().isBlank()) {
+            String email = request.getEmail().trim().toLowerCase();
+            if (userRepository.existsByEmailIgnoreCase(email)) {
+                throw new BusinessException("Ushbu email (" + email + ") tizimda allaqachon mavjud");
+            }
+        }
+
+        String rawPassword = request.getPassword();
+        if (rawPassword == null || rawPassword.isBlank()) {
+            rawPassword = "Staff@" + (100000 + (int)(Math.random() * 900000));
+        }
+
+        Set<String> roleNames = new HashSet<>();
+        roleNames.add(primaryRole);
+        if (request.getRoles() != null) {
+            for (String r : request.getRoles()) {
+                roleNames.add(rbacService.normalizeRoleName(r));
+            }
+        }
+
+        Set<Role> roles = new HashSet<>();
+        for (String rName : roleNames) {
+            Role role = roleRepository.findByName(rName)
+                    .orElseGet(() -> roleRepository.findByName("ROLE_" + rName)
+                            .orElseThrow(() -> new BusinessException("Rol topilmadi: " + rName)));
+            roles.add(role);
+        }
+
+        User user = User.builder()
+                .username(username)
+                .password(passwordEncoder.encode(rawPassword))
+                .fullName(fullName)
+                .email(request.getEmail() != null && !request.getEmail().isBlank() ? request.getEmail().trim().toLowerCase() : null)
+                .phone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : null)
+                .role("ROLE_" + primaryRole)
+                .roles(roles)
+                .enabled(true)
+                .emailVerified(true)
+                .build();
+
+        User saved = userRepository.save(user);
+
+        auditService.logAction(
+                "USER_PROVISIONED",
+                "User",
+                String.valueOf(saved.getId()),
+                actorUsername != null ? actorUsername : "ADMIN",
+                "Yangi xodim hisobi yaratildi: " + fullName + " (" + username + ", rol: " + primaryRole + ")"
+        );
+
+        UserDto userDto = rbacService.toUserDto(saved);
+        return UserProvisionDto.builder()
+                .id(saved.getId())
+                .username(saved.getUsername())
+                .fullName(saved.getFullName())
+                .email(saved.getEmail())
+                .phone(saved.getPhone())
+                .primaryRole(saved.getRole())
+                .roles(userDto.getRoles())
+                .effectivePermissions(userDto.getEffectivePermissions())
+                .temporaryPassword(rawPassword)
+                .enabled(saved.isEnabled())
+                .createdAt(saved.getCreatedAt())
+                .build();
     }
 }

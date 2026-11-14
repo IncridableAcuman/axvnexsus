@@ -32,6 +32,9 @@ public class StudyGroup extends BaseEntity {
 
     private String scheduleDays; // "Seshanba-Payshanba-Shanba"
 
+    @Column(name = "day_pattern")
+    private String dayPattern; // "ODD_DAYS", "EVEN_DAYS", "ALL_SIX_DAYS", "CUSTOM"
+
     private String scheduleTime; // "15:00-16:30"
 
     private String room; // "IT Lab 1"

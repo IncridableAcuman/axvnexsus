@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { attendanceApi } from '@/api';
+import { queryClient } from '@/app/providers/QueryProvider';
 import { useTranslation } from '@/shared/i18n';
 import { useOptionalAuth } from '@/features/auth/AuthContext';
 import { AttendanceSheetModal } from './AttendanceSheetModal';
@@ -65,8 +66,29 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       const mentorIdNum = selectedMentor !== 'all' ? Number(selectedMentor) : undefined;
       const groupIdNum = selectedGroup !== 'all' ? Number(selectedGroup) : undefined;
 
+      // Compute visible date range based on viewMode and currentDate
+      const start = new Date(currentDate);
+      const end = new Date(currentDate);
+
+      if (viewMode === 'day') {
+        // start and end are currentDate
+      } else if (viewMode === 'week') {
+        const day = start.getDay();
+        const diff = start.getDate() - day + (day === 0 ? -6 : 1);
+        start.setDate(diff);
+        end.setTime(start.getTime());
+        end.setDate(end.getDate() + 6);
+      } else {
+        // month view
+        start.setDate(1);
+        end.setMonth(end.getMonth() + 1, 0);
+      }
+
+      const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+      const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+
       const [sessRes, todayRes] = await Promise.all([
-        attendanceApi.getSessions(undefined, undefined, mentorIdNum, groupIdNum),
+        attendanceApi.getSessions(startStr, endStr, mentorIdNum, groupIdNum),
         attendanceApi.getTodaySessions(mentorIdNum),
       ]);
 
@@ -81,7 +103,7 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
 
   useEffect(() => {
     loadData();
-  }, [selectedMentor, selectedGroup]);
+  }, [selectedMentor, selectedGroup, currentDate, viewMode]);
 
   const handleCancelSession = async (session: LessonSessionDto, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -92,6 +114,9 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
 
     try {
       await attendanceApi.cancelSession(session.id, reason.trim());
+      queryClient.invalidateQueries({ queryKey: ['lessons'] });
+      queryClient.invalidateQueries({ queryKey: ['today-sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-admin'] });
       loadData();
     } catch {
       alert(t('schedule.cancelError'));
@@ -743,6 +768,9 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
               setAttendanceSession(null);
             }}
             onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['lessons'] });
+              queryClient.invalidateQueries({ queryKey: ['today-sessions'] });
+              queryClient.invalidateQueries({ queryKey: ['dashboard-admin'] });
               loadData();
             }}
           />
@@ -755,6 +783,9 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
               setRescheduleSession(null);
             }}
             onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['lessons'] });
+              queryClient.invalidateQueries({ queryKey: ['today-sessions'] });
+              queryClient.invalidateQueries({ queryKey: ['dashboard-admin'] });
               loadData();
             }}
           />
@@ -765,6 +796,9 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
             groups={groups}
             mentors={mentors}
             onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ['lessons'] });
+              queryClient.invalidateQueries({ queryKey: ['today-sessions'] });
+              queryClient.invalidateQueries({ queryKey: ['dashboard-admin'] });
               loadData();
             }}
           />

@@ -10,6 +10,8 @@ import type {
   RegisterRequest,
   LoginRequest,
   AuthResponse,
+  TimeSlot,
+  TimeSlotRequest,
 } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -92,12 +94,58 @@ export const scheduleApi = {
     return api.get<Schedule[]>('/schedules', { params });
   },
 
+  getById: (id: number) => {
+    return api.get<Schedule>(`/schedules/${id}`);
+  },
+
   createManual: (data: ManualScheduleRequest) => {
     return api.post<Schedule>('/schedules/manual', data);
   },
 
+  update: (id: number, data: ManualScheduleRequest) => {
+    return api.put<Schedule>(`/schedules/${id}`, data);
+  },
+
   delete: (id: number) => {
     return api.delete(`/schedules/${id}`);
+  },
+};
+
+export const timeSlotApi = {
+  getActive: async (branchId?: number): Promise<TimeSlot[]> => {
+    const res = await api.get<{ success: boolean; data: TimeSlot[] }>('/time-slots', {
+      params: branchId ? { branchId } : undefined,
+    });
+    return res.data.data;
+  },
+
+  getAllAdmin: async (): Promise<TimeSlot[]> => {
+    const res = await api.get<{ success: boolean; data: TimeSlot[] }>('/admin/time-slots');
+    return res.data.data;
+  },
+
+  getById: async (id: number): Promise<TimeSlot> => {
+    const res = await api.get<{ success: boolean; data: TimeSlot }>(`/admin/time-slots/${id}`);
+    return res.data.data;
+  },
+
+  create: async (data: TimeSlotRequest): Promise<TimeSlot> => {
+    const res = await api.post<{ success: boolean; data: TimeSlot }>('/admin/time-slots', data);
+    return res.data.data;
+  },
+
+  update: async (id: number, data: TimeSlotRequest): Promise<TimeSlot> => {
+    const res = await api.put<{ success: boolean; data: TimeSlot }>(`/admin/time-slots/${id}`, data);
+    return res.data.data;
+  },
+
+  toggleActive: async (id: number): Promise<TimeSlot> => {
+    const res = await api.patch<{ success: boolean; data: TimeSlot }>(`/admin/time-slots/${id}/toggle-active`);
+    return res.data.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/admin/time-slots/${id}`);
   },
 };
 
@@ -106,12 +154,50 @@ export const studentApi = {
     return api.get<Student>('/students/me');
   },
 
-  getAll: (gradeLevel?: string, mentorId?: number, groupId?: number) => {
+  getAll: (
+    gradeLevel?: string,
+    mentorId?: number,
+    groupId?: number,
+    branchId?: number,
+    status?: string,
+    search?: string
+  ) => {
     const params: Record<string, unknown> = {};
-    if (gradeLevel) params.gradeLevel = gradeLevel;
+    if (gradeLevel && gradeLevel !== 'all') params.gradeLevel = gradeLevel;
     if (mentorId) params.mentorId = mentorId;
     if (groupId) params.groupId = groupId;
+    if (branchId) params.branchId = branchId;
+    if (status && status !== 'all') params.status = status;
+    if (search) params.search = search;
     return api.get<Student[]>('/students', { params });
+  },
+
+  getById: (id: number) => {
+    return api.get<{ success: boolean; data: import('./types').StudentDetailDto }>(`/students/${id}`);
+  },
+
+  update: (id: number, data: import('./types').UpdateStudentRequest) => {
+    return api.put<{ success: boolean; message: string; data: import('./types').StudentDetailDto }>(`/students/${id}`, data);
+  },
+
+  updateStatus: (id: number, status: string, reason?: string) => {
+    return api.patch<{ success: boolean; message: string; data: import('./types').StudentDetailDto }>(
+      `/students/${id}/status`,
+      null,
+      { params: { status, reason } }
+    );
+  },
+
+  archive: (id: number, reason?: string) => {
+    return api.post<{ success: boolean; message: string; data: import('./types').StudentDetailDto }>(
+      `/students/${id}/archive`,
+      null,
+      { params: { reason } }
+    );
+  },
+
+  getGroupHistory: (id: number) => {
+    return api.get<{ success: boolean; data: import('./types').GroupMembershipDto[] }>(`/students/${id}/group-history`);
   },
 
   save: (student: Partial<Student>) => {
@@ -140,7 +226,38 @@ export const studentApi = {
 };
 
 export const mentorApi = {
-  getAll: () => api.get<Mentor[]>('/mentors'),
+  getAll: (search?: string, branchId?: number, status?: string) => {
+    const params: Record<string, unknown> = {};
+    if (search) params.search = search;
+    if (branchId) params.branchId = branchId;
+    if (status && status !== 'all') params.status = status;
+    return api.get<Mentor[]>('/mentors', { params });
+  },
+
+  getById: (id: number) => {
+    return api.get<{ success: boolean; data: import('./types').MentorDetailDto }>(`/mentors/${id}`);
+  },
+
+  update: (id: number, data: import('./types').UpdateMentorRequest) => {
+    return api.put<{ success: boolean; message: string; data: import('./types').MentorDetailDto }>(`/mentors/${id}`, data);
+  },
+
+  updateStatus: (id: number, status: string, reason?: string) => {
+    return api.patch<{ success: boolean; message: string; data: import('./types').MentorDetailDto }>(
+      `/mentors/${id}/status`,
+      null,
+      { params: { status, reason } }
+    );
+  },
+
+  archive: (id: number, reason?: string) => {
+    return api.post<{ success: boolean; message: string; data: import('./types').MentorDetailDto }>(
+      `/mentors/${id}/archive`,
+      null,
+      { params: { reason } }
+    );
+  },
+
   create: (mentor: Partial<Mentor>) => api.post<Mentor>('/mentors', mentor),
   provision: (data: import('./types').CreateMentorRequest) => {
     return api.post<{
@@ -270,6 +387,21 @@ export const authApi = {
       data: AuthResponse;
     }>('/auth/me');
   },
+
+  changePassword: (data: import('./types').ChangePasswordRequest) => {
+    return api.post<{
+      success: boolean;
+      message: string;
+    }>('/auth/change-password', data);
+  },
+
+  updateProfile: (data: import('./types').UpdateProfileRequest) => {
+    return api.put<{
+      success: boolean;
+      message: string;
+      data: AuthResponse;
+    }>('/auth/profile', data);
+  },
 };
 
 // Module 04: User Management & RBAC API
@@ -280,6 +412,10 @@ export const userApi = {
 
   getUserById: (id: number) => {
     return api.get<{ success: boolean; data: import('./types').UserDto }>(`/users/${id}`);
+  },
+
+  createUser: (data: import('./types').CreateUserRequest) => {
+    return api.post<{ success: boolean; message: string; data: import('./types').UserProvisionDto }>('/users', data);
   },
 
   assignRoles: (id: number, roles: string[]) => {
@@ -414,6 +550,10 @@ export const branchApi = {
 
 // Module 06: Mentor Profiles API
 export const mentorProfileApi = {
+  getMyProfile: () => {
+    return api.get<{ success: boolean; data: import('./types').MentorProfileDto | null }>('/mentors/me/profile');
+  },
+
   getPublicProfiles: () => {
     return api.get<{ success: boolean; data: import('./types').PublicMentorProfileDto[] }>('/mentors/public');
   },
@@ -850,37 +990,37 @@ export const userPreferenceApi = {
 // ============================================================================
 export const adminApi = {
   getOverview: () => {
-    return api.get<{ success: boolean; data: import('./types').AdminOverview }>('/v1/admin/overview');
+    return api.get<{ success: boolean; data: import('./types').AdminOverview }>('/admin/overview');
   },
   getUsers: (params?: { query?: string; role?: string; enabled?: boolean; page?: number; size?: number; sortBy?: string; sortDir?: string }) => {
-    return api.get<{ success: boolean; data: { content: import('./types').AdminUserItem[]; totalElements: number; totalPages: number; page: number; size: number } }>('/v1/admin/users', { params });
+    return api.get<{ success: boolean; data: { content: import('./types').AdminUserItem[]; totalElements: number; totalPages: number; page: number; size: number } }>('/admin/users', { params });
   },
   updateUserStatus: (id: number, enabled: boolean, reason: string) => {
-    return api.put<{ success: boolean; data: import('./types').AdminUserItem }>(`/v1/admin/users/${id}/status`, { enabled, reason });
+    return api.put<{ success: boolean; data: import('./types').AdminUserItem }>(`/admin/users/${id}/status`, { enabled, reason });
   },
   updateUserRoles: (id: number, roles: string[], reason?: string) => {
-    return api.put<{ success: boolean; data: import('./types').AdminUserItem }>(`/v1/admin/users/${id}/roles`, { roles, reason });
+    return api.put<{ success: boolean; data: import('./types').AdminUserItem }>(`/admin/users/${id}/roles`, { roles, reason });
   },
   getAuditLogs: (params?: { query?: string; action?: string; entityName?: string; performedBy?: string; from?: string; to?: string; page?: number; size?: number }) => {
-    return api.get<{ success: boolean; data: { content: import('./types').AuditLogItem[]; totalElements: number; totalPages: number; page: number; size: number } }>('/v1/admin/audit-logs', { params });
+    return api.get<{ success: boolean; data: { content: import('./types').AuditLogItem[]; totalElements: number; totalPages: number; page: number; size: number } }>('/admin/audit-logs', { params });
   },
   exportAuditLogs: (format: 'csv' | 'json' = 'csv') => {
-    return api.get(`/v1/admin/audit-logs/export?format=${format}`, { responseType: 'blob' });
+    return api.get(`/admin/audit-logs/export?format=${format}`, { responseType: 'blob' });
   },
   getSystemConfigs: () => {
-    return api.get<{ success: boolean; data: import('./types').SystemConfigItem[] }>('/v1/admin/system-config');
+    return api.get<{ success: boolean; data: import('./types').SystemConfigItem[] }>('/admin/system-config');
   },
   updateSystemConfig: (data: { key: string; value: string; description?: string }) => {
-    return api.put<{ success: boolean; data: import('./types').SystemConfigItem }>('/v1/admin/system-config', data);
+    return api.put<{ success: boolean; data: import('./types').SystemConfigItem }>('/admin/system-config', data);
   },
   getHealthOverview: () => {
-    return api.get<{ success: boolean; data: import('./types').OperationalHealth }>('/v1/admin/health-overview');
+    return api.get<{ success: boolean; data: import('./types').OperationalHealth }>('/admin/health-overview');
   },
   moderateContent: (data: import('./types').ContentModerationRequest) => {
-    return api.post<{ success: boolean }>('/v1/admin/content-moderation', data);
+    return api.post<{ success: boolean }>('/admin/content-moderation', data);
   },
   overrideGrade: (data: import('./types').GradeOverrideRequest) => {
-    return api.post<{ success: boolean; data: import('./types').GradeRecordDto }>('/v1/admin/grade-override', data);
+    return api.post<{ success: boolean; data: import('./types').GradeRecordDto }>('/admin/grade-override', data);
   },
 };
 

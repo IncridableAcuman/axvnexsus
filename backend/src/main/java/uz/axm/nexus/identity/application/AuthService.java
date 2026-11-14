@@ -14,11 +14,14 @@ import uz.axm.nexus.identity.domain.PasswordResetToken;
 import uz.axm.nexus.identity.infrastructure.PasswordResetTokenRepository;
 import uz.axm.nexus.identity.infrastructure.EmailVerificationTokenRepository;
 import uz.axm.nexus.identity.infrastructure.JwtTokenProvider;
+import uz.axm.nexus.mentors.infrastructure.MentorProfileRepository;
+import uz.axm.nexus.mentors.infrastructure.MentorRepository;
 import uz.axm.nexus.notifications.application.EmailProducerService;
 import uz.axm.nexus.notifications.application.EmailRateLimiterService;
 import uz.axm.nexus.notifications.application.EmailVerificationEvent;
 import uz.axm.nexus.shared.application.BusinessException;
 import uz.axm.nexus.users.domain.User;
+import uz.axm.nexus.users.infrastructure.StudentRepository;
 import uz.axm.nexus.users.infrastructure.UserRepository;
 
 import java.security.SecureRandom;
@@ -44,6 +47,9 @@ public class AuthService {
     private final EmailRateLimiterService emailRateLimiterService;
     private final JwtTokenProvider jwtTokenProvider;
     private final CaptchaService captchaService;
+    private final StudentRepository studentRepository;
+    private final MentorRepository mentorRepository;
+    private final MentorProfileRepository mentorProfileRepository;
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
@@ -355,6 +361,93 @@ public class AuthService {
         User user = userRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(username, username)
                 .orElseThrow(() -> new BusinessException("Foydalanuvchi topilmadi: " + username));
         return buildAuthResponse(user);
+    }
+
+    @Transactional
+    public void changePassword(String currentUsername, ChangePasswordRequest request) {
+        User user = userRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(currentUsername, currentUsername)
+                .orElseThrow(() -> new BusinessException("Foydalanuvchi topilmadi: " + currentUsername));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new BusinessException("Joriy parol noto'g'ri kiritildi");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        try {
+            auditService.logAction(
+                    "PASSWORD_CHANGED",
+                    "User",
+                    String.valueOf(user.getId()),
+                    user.getUsername(),
+                    "Foydalanuvchi o'z parolini muvaffaqiyatli o'zgartirdi"
+            );
+        } catch (Exception e) {
+            log.warn("Audit log yozishda xatolik: {}", e.getMessage());
+        }
+    }
+
+    @Transactional
+    public AuthResponse updateProfile(String currentUsername, UpdateProfileRequest request) {
+        User user = userRepository.findByUsernameIgnoreCaseOrEmailIgnoreCase(currentUsername, currentUsername)
+                .orElseThrow(() -> new BusinessException("Foydalanuvchi topilmadi: " + currentUsername));
+
+        String fullName = request.getFullName().trim();
+        user.setFullName(fullName);
+
+        if (request.getPhone() != null) {
+            user.setPhone(request.getPhone().trim());
+        }
+
+        if (request.getEmail() != null && !request.getEmail().trim().isBlank()) {
+            String newEmail = request.getEmail().trim().toLowerCase();
+            if (!newEmail.equalsIgnoreCase(user.getEmail())) {
+                if (userRepository.existsByEmailIgnoreCase(newEmail)) {
+                    throw new BusinessException("Ushbu email manzili allaqachon boshqa hisobda ro'yxatdan o'tgan");
+                }
+                user.setEmail(newEmail);
+            }
+        }
+
+        User savedUser = userRepository.save(user);
+
+        // Sync student if linked
+        studentRepository.findByUserId(savedUser.getId()).ifPresent(s -> {
+            s.setFullName(fullName);
+            if (savedUser.getPhone() != null) s.setPhone(savedUser.getPhone());
+            studentRepository.save(s);
+        });
+
+        // Sync mentor if linked
+        mentorRepository.findByUserId(savedUser.getId()).ifPresent(m -> {
+            m.setFullName(fullName);
+            if (savedUser.getPhone() != null) m.setPhone(savedUser.getPhone());
+            if (savedUser.getEmail() != null) m.setEmail(savedUser.getEmail());
+            mentorRepository.save(m);
+        });
+
+        // Sync mentor profile if exists
+        mentorProfileRepository.findByUserId(savedUser.getId()).ifPresent(mp -> {
+            mp.setDisplayName(fullName);
+            if (savedUser.getPhone() != null) mp.setPhone(savedUser.getPhone());
+            if (savedUser.getEmail() != null) mp.setEmail(savedUser.getEmail());
+            mentorProfileRepository.save(mp);
+        });
+
+        try {
+            auditService.logAction(
+                    "PROFILE_UPDATED",
+                    "User",
+                    String.valueOf(savedUser.getId()),
+                    savedUser.getUsername(),
+                    "Foydalanuvchi shaxsiy profiling yangiladi: " + fullName
+            );
+        } catch (Exception e) {
+            log.warn("Audit log yozishda xatolik: {}", e.getMessage());
+        }
+
+        return buildAuthResponse(savedUser);
     }
 
     private EmailVerificationToken createVerificationTokenForUser(User user) {

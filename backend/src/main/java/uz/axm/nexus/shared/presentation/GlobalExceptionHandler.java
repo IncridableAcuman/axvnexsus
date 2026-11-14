@@ -12,6 +12,8 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import uz.axm.nexus.scheduling.application.ScheduleConflictException;
+import uz.axm.nexus.scheduling.application.ScheduleConflictResponse;
 import uz.axm.nexus.shared.application.ApiResponse;
 import uz.axm.nexus.shared.application.BusinessException;
 import uz.axm.nexus.shared.application.RateLimitException;
@@ -68,6 +70,19 @@ public class GlobalExceptionHandler {
         String msg = getLocalizedMessage("error.access_denied", "Ushbu amalni bajarish uchun sizda yetarli huquq mavjud emas.");
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ApiResponse.error("ERR_ACCESS_DENIED", msg));
+    }
+
+    @ExceptionHandler(ScheduleConflictException.class)
+    public ResponseEntity<ScheduleConflictResponse> handleScheduleConflict(ScheduleConflictException ex) {
+        log.warn("Jadval to'qnashuvi: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ScheduleConflictResponse.builder()
+                        .success(false)
+                        .code("SCHEDULE_CONFLICT")
+                        .errorCode("SCHEDULE_CONFLICT")
+                        .message(ex.getMessage())
+                        .conflicts(ex.getConflicts())
+                        .build());
     }
 
     @ExceptionHandler(BusinessException.class)

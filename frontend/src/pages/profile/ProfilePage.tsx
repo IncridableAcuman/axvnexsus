@@ -56,7 +56,7 @@ export const ProfilePage: React.FC = () => {
   const loadMentorProfile = async () => {
     if (isPureStudent) return;
     try {
-      const res = await mentorProfileApi.getProfileByMentorId(1);
+      const res = await mentorProfileApi.getMyProfile();
       if (res.data?.data) {
         setMentorProfile(res.data.data);
       }
@@ -115,27 +115,30 @@ export const ProfilePage: React.FC = () => {
     return name.slice(0, 2).toUpperCase();
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSavingProfile(true);
-    setTimeout(() => {
-      setIsSavingProfile(false);
-      try {
+    try {
+      const res = await authApi.updateProfile({ fullName, phone, email });
+      if (res.data?.data) {
         const stored = localStorage.getItem('axm_nexus_user');
         if (stored) {
           const parsed = JSON.parse(stored);
-          parsed.fullName = fullName;
-          parsed.email = email;
+          parsed.fullName = res.data.data.fullName;
+          parsed.email = res.data.data.email;
           localStorage.setItem('axm_nexus_user', JSON.stringify(parsed));
         }
-      } catch {
-        // ignore
       }
       toast.success('Muvaffaqiyatli saqlandi', 'Profilingiz ma’lumotlari yangilandi.');
-    }, 600);
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Profilni saqlashda xatolik yuz berdi';
+      toast.error('Xatolik', message);
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
 
@@ -153,13 +156,19 @@ export const ProfilePage: React.FC = () => {
     }
 
     setIsChangingPassword(true);
-    setTimeout(() => {
-      setIsChangingPassword(false);
+    try {
+      await authApi.changePassword({ currentPassword, newPassword });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
       toast.success('Parol yangilandi', 'Yangi parolingiz muvaffaqiyatli o‘rnatildi.');
-    }, 800);
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Parolni o‘zgartirishda xatolik yuz berdi';
+      setPasswordError(message);
+      toast.error('Xatolik', message);
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const handleRefreshToken = async () => {

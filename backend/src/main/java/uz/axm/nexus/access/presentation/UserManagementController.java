@@ -4,14 +4,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import uz.axm.nexus.access.application.AssignRolesRequest;
-import uz.axm.nexus.access.application.RbacService;
-import uz.axm.nexus.access.application.UpdateUserStatusRequest;
-import uz.axm.nexus.access.application.UserDto;
-import uz.axm.nexus.access.application.UserManagementService;
+import uz.axm.nexus.access.application.*;
 import uz.axm.nexus.shared.application.ApiResponse;
 import uz.axm.nexus.shared.application.PageResponse;
 import uz.axm.nexus.shared.infrastructure.CurrentUserHelper;
@@ -25,6 +22,18 @@ public class UserManagementController {
     private final UserManagementService userManagementService;
     private final RbacService rbacService;
     private final CurrentUserHelper currentUserHelper;
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN') or hasAuthority('users.create')")
+    @Operation(summary = "Yangi ma'muriy yoki xodim foydalanuvchisini yaratish va rol biriktirish")
+    public ResponseEntity<ApiResponse<UserProvisionDto>> createUser(
+            @Valid @RequestBody CreateUserRequest request
+    ) {
+        String effectiveActor = currentUserHelper.getCurrentUsername();
+        UserProvisionDto dto = userManagementService.createUser(request, effectiveActor);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok("Foydalanuvchi hisobi muvaffaqiyatli yaratildi", dto));
+    }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'REGIONAL_COORDINATOR', 'COORDINATOR', 'OBSERVER') or hasAuthority('users.read')")

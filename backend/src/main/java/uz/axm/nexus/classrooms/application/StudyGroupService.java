@@ -3,6 +3,7 @@ package uz.axm.nexus.classrooms.application;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import uz.axm.nexus.branches.domain.Branch;
 import uz.axm.nexus.classrooms.domain.StudyGroup;
 import uz.axm.nexus.classrooms.infrastructure.StudyGroupRepository;
 import uz.axm.nexus.mentors.domain.Mentor;
@@ -37,6 +38,13 @@ public class StudyGroupService {
     public StudyGroup getOrCreate(String groupCode, String gradeLevel, String subject,
                                   Mentor mentor, String branchLocation, String scheduleDays,
                                   String scheduleTime, String room) {
+        return getOrCreate(groupCode, gradeLevel, subject, mentor, branchLocation, scheduleDays, scheduleTime, room, null, null);
+    }
+
+    @Transactional
+    public StudyGroup getOrCreate(String groupCode, String gradeLevel, String subject,
+                                  Mentor mentor, String branchLocation, String scheduleDays,
+                                  String scheduleTime, String room, String dayPattern, Branch branch) {
         if (groupCode == null || groupCode.isBlank()) {
             groupCode = "GURUH-" + System.currentTimeMillis() % 10000;
         }
@@ -47,9 +55,11 @@ public class StudyGroupService {
             if (gradeLevel != null) existing.setGradeLevel(gradeLevel);
             if (subject != null) existing.setSubject(subject);
             if (scheduleDays != null) existing.setScheduleDays(scheduleDays);
+            if (dayPattern != null) existing.setDayPattern(dayPattern);
             if (scheduleTime != null) existing.setScheduleTime(scheduleTime);
             if (room != null) existing.setRoom(room);
             if (branchLocation != null) existing.setBranchLocation(branchLocation);
+            if (branch != null) existing.setBranch(branch);
             return studyGroupRepository.save(existing);
         }).orElseGet(() -> {
             StudyGroup group = StudyGroup.builder()
@@ -58,7 +68,9 @@ public class StudyGroupService {
                     .subject(subject != null ? subject : "Web Full-Stack Development")
                     .mentor(mentor)
                     .branchLocation(branchLocation != null ? branchLocation : "IT Park Yangiariq")
+                    .branch(branch)
                     .scheduleDays(scheduleDays)
+                    .dayPattern(dayPattern)
                     .scheduleTime(scheduleTime)
                     .room(room != null ? room : "IT Lab 1")
                     .studentCount(0)

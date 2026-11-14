@@ -21,10 +21,16 @@ export interface ToastContextType {
 
 export const ToastContext = createContext<ToastContextType | undefined>(undefined)
 
+const fallbackToast: ToastContextType = {
+  toast: () => {},
+  success: () => {},
+  error: () => {},
+  warning: () => {},
+  info: () => {},
+  dismiss: () => {},
+}
+
 export const useToast = (): ToastContextType => {
   const context = useContext(ToastContext)
-  if (!context) {
-    throw new Error('useToast must be used within ToastProvider')
-  }
-  return context
+  return context || fallbackToast
 }

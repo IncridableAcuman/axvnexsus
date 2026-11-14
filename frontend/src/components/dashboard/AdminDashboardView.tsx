@@ -741,9 +741,26 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-xs font-medium text-foreground">
-                            {s.days}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-medium text-foreground">
+                              {s.days}
+                            </span>
+                            {s.dayPattern && s.dayPattern !== 'CUSTOM' && (
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
+                                s.dayPattern === 'ODD_DAYS'
+                                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+                                  : s.dayPattern === 'EVEN_DAYS'
+                                  ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'
+                                  : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                              }`}>
+                                {s.dayPattern === 'ODD_DAYS'
+                                  ? t('scheduling.oddDays')
+                                  : s.dayPattern === 'EVEN_DAYS'
+                                  ? t('scheduling.evenDays')
+                                  : t('scheduling.allSixDays')}
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
                             <Clock className="w-3 h-3 text-blue-500" />
                             <span>

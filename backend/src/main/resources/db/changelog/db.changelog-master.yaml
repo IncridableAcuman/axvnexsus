@@ -29,3 +29,9 @@ databaseChangeLog:
       file: db/changelog/changes/014-data-architecture-integrity.sql
   - include:
       file: db/changelog/changes/015-branches-and-classes-management.sql
+  - include:
+      file: db/changelog/changes/016-scheduling-day-patterns.sql
+  - include:
+      file: db/changelog/changes/017-configurable-time-slots.sql
+  - include:
+      file: db/changelog/changes/018-module01-people-enhancements.sql

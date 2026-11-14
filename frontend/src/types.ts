@@ -77,6 +77,7 @@ export interface Mentor {
   branchName?: string;
   branch?: Branch;
   bio?: string;
+  status?: string;
 }
 
 export interface StudyGroup {
@@ -93,6 +94,7 @@ export interface StudyGroup {
   room?: string;
   lessonDays?: string;
   lessonTime?: string;
+  dayPattern?: SchedulingMode | string;
   scheduleDays?: string;
   scheduleTime?: string;
   mentor?: Mentor;
@@ -102,6 +104,8 @@ export interface StudyGroup {
   studentCount?: number;
 }
 
+export type SchedulingMode = 'ODD_DAYS' | 'EVEN_DAYS' | 'ALL_SIX_DAYS' | 'CUSTOM';
+
 export interface Schedule {
   id: number;
   studyGroup?: StudyGroup;
@@ -109,6 +113,7 @@ export interface Schedule {
   gradeLevel: string;
   subject: string;
   days: string;
+  dayPattern?: SchedulingMode | string;
   startTime: string;
   endTime: string;
   room?: string;
@@ -119,6 +124,33 @@ export interface Schedule {
   academicYear?: string;
   topic?: string;
   durationMinutes?: number;
+}
+
+export interface TimeSlot {
+  id: number;
+  name: string;
+  startTime: string; // "09:30"
+  endTime: string;   // "11:00"
+  durationMinutes?: number;
+  displayOrder?: number;
+  active: boolean;
+  description?: string;
+  branchId?: number;
+  branchName?: string;
+  usageCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TimeSlotRequest {
+  name: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes?: number;
+  displayOrder?: number;
+  active?: boolean;
+  description?: string;
+  branchId?: number;
 }
 
 export interface Student {
@@ -139,19 +171,135 @@ export interface Student {
   mentor?: Mentor;
 }
 
+export interface StudentDetailDto {
+  id: number;
+  fullName: string;
+  studentIdNumber?: string;
+  username?: string;
+  pinfl?: string;
+  phone?: string;
+  gradeLevel?: string;
+  direction?: string;
+  district?: string;
+  branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  studyGroupId?: number;
+  groupCode?: string;
+  mentorId?: number;
+  mentorName?: string;
+  status: string;
+  accountEnabled: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateStudentRequest {
+  fullName: string;
+  phone?: string;
+  pinfl?: string;
+  gradeLevel?: string;
+  district?: string;
+  direction?: string;
+  branchId?: number;
+  branchLocation?: string;
+  studyGroupId?: number;
+  mentorId?: number;
+  status?: string;
+}
+
+export interface MentorDetailDto {
+  id: number;
+  fullName: string;
+  role: string;
+  phone?: string;
+  email?: string;
+  branchLocation?: string;
+  branchId?: number;
+  branchName?: string;
+  bio?: string;
+  status: string;
+  username?: string;
+  accountEnabled: boolean;
+  activeGroupsCount: number;
+  activeStudentsCount: number;
+  weeklyHours: number;
+  assignedGroups: {
+    id: number;
+    groupCode: string;
+    subject?: string;
+    gradeLevel?: string;
+    studentCount?: number;
+    scheduleDays?: string;
+    scheduleTime?: string;
+    status?: string;
+  }[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateMentorRequest {
+  fullName: string;
+  role?: string;
+  phone?: string;
+  email?: string;
+  branchLocation?: string;
+  branchId?: number;
+  bio?: string;
+  status?: string;
+}
+
+export interface CreateUserRequest {
+  fullName: string;
+  username?: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+  primaryRole: string;
+  roles?: string[];
+}
+
+export interface UserProvisionDto {
+  id: number;
+  username: string;
+  fullName: string;
+  email?: string;
+  phone?: string;
+  primaryRole: string;
+  roles: string[];
+  effectivePermissions: string[];
+  temporaryPassword?: string;
+  enabled: boolean;
+  createdAt?: string;
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface UpdateProfileRequest {
+  fullName: string;
+  phone?: string;
+  email?: string;
+}
+
 export interface ManualScheduleRequest {
   mentorName: string;
   mentorRole: string;
   groupCode: string;
   gradeLevel: string;
   subject: string;
-  days: string;
+  dayPattern?: SchedulingMode | string;
+  selectedDays?: string[];
+  days?: string;
   startTime: string;
   endTime: string;
   room: string;
   branchLocation: string;
+  branchId?: number;
   topic?: string;
-  students: {
+  students?: {
     fullName: string;
     pinfl?: string;
     studentIdNumber?: string;
@@ -239,6 +387,7 @@ export interface CreateMentorRequest {
   branchName?: string;
   branch?: Branch;
   bio?: string;
+  status?: string;
 }
 
 export interface MentorProvisionDto {

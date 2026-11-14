@@ -11,4 +11,5 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
     List<Schedule> findByGradeLevel(String gradeLevel);
     List<Schedule> findByMentorId(Long mentorId);
     List<Schedule> findByStudyGroupId(Long studyGroupId);
+    long countByStartTimeAndEndTime(String startTime, String endTime);
 }

@@ -30,9 +30,11 @@ import uz.axm.nexus.mentors.infrastructure.MentorEducationRepository;
 import uz.axm.nexus.scheduling.domain.AttendanceRecord;
 import uz.axm.nexus.scheduling.domain.LessonSession;
 import uz.axm.nexus.scheduling.domain.Schedule;
+import uz.axm.nexus.scheduling.domain.TimeSlot;
 import uz.axm.nexus.scheduling.infrastructure.AttendanceRecordRepository;
 import uz.axm.nexus.scheduling.infrastructure.LessonSessionRepository;
 import uz.axm.nexus.scheduling.infrastructure.ScheduleRepository;
+import uz.axm.nexus.scheduling.infrastructure.TimeSlotRepository;
 import uz.axm.nexus.users.domain.Student;
 import uz.axm.nexus.users.domain.User;
 import uz.axm.nexus.users.infrastructure.StudentRepository;
@@ -57,6 +59,7 @@ import uz.axm.nexus.grading.infrastructure.PointTransactionRepository;
 import uz.axm.nexus.grading.infrastructure.StudentStreakRepository;
 import uz.axm.nexus.grading.infrastructure.StudentAchievementRepository;
 import uz.axm.nexus.grading.infrastructure.AchievementRepository;
+import uz.axm.nexus.identity.application.HemisIdGeneratorService;
 import uz.axm.nexus.lessons.domain.Lesson;
 import uz.axm.nexus.lessons.domain.StudentLessonProgress;
 import uz.axm.nexus.lessons.infrastructure.LessonRepository;
@@ -74,6 +77,7 @@ public class DataSeeder implements CommandLineRunner {
     private final MentorRepository mentorRepository;
     private final StudyGroupRepository studyGroupRepository;
     private final ScheduleRepository scheduleRepository;
+    private final TimeSlotRepository timeSlotRepository;
     private final StudentRepository studentRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -106,6 +110,7 @@ public class DataSeeder implements CommandLineRunner {
     private final uz.axm.nexus.audit.infrastructure.AuditLogRepository auditLogRepository;
     private final uz.axm.nexus.audit.infrastructure.SystemConfigRepository systemConfigRepository;
     private final uz.axm.nexus.identity.infrastructure.SuperAdminBootstrapService superAdminBootstrapService;
+    private final HemisIdGeneratorService hemisIdGeneratorService;
     private final org.springframework.core.env.Environment environment;
 
     @org.springframework.beans.factory.annotation.Value("${app.seeder.demo-data-enabled:true}")
@@ -274,6 +279,39 @@ public class DataSeeder implements CommandLineRunner {
                 .topic("Advanced UX/UI dizayn va Advanced Front-end (React & TypeScript)")
                 .durationMinutes(90)
                 .build());
+
+        // 5.1 Configurable Lesson Time Slots
+        if (timeSlotRepository.count() == 0) {
+            timeSlotRepository.save(TimeSlot.builder()
+                    .name("Ertalabki smena (Morning)")
+                    .startTime("09:30")
+                    .endTime("11:00")
+                    .durationMinutes(90)
+                    .displayOrder(1)
+                    .active(true)
+                    .description("Ertalabki akademik dars vaqti")
+                    .build());
+
+            timeSlotRepository.save(TimeSlot.builder()
+                    .name("Tushdan keyingi (Afternoon)")
+                    .startTime("15:00")
+                    .endTime("16:30")
+                    .durationMinutes(90)
+                    .displayOrder(2)
+                    .active(true)
+                    .description("Tushdan keyingi dars vaqti (YA-26I0804 standarti)")
+                    .build());
+
+            timeSlotRepository.save(TimeSlot.builder()
+                    .name("Kechki smena (Evening)")
+                    .startTime("16:30")
+                    .endTime("18:00")
+                    .durationMinutes(90)
+                    .displayOrder(3)
+                    .active(true)
+                    .description("Kechki dars vaqti (YA-24I1105 standarti)")
+                    .build());
+        }
 
         // 6. Students (15 in YA-24I1105, 14 in YA-26I0804)
         List<Student> students = List.of(
@@ -853,12 +891,14 @@ public class DataSeeder implements CommandLineRunner {
             log.info("Existing Mentor user updated to HEMIS ID: 32600001");
         }
         User finalMentor1 = mentor1;
-        mentorRepository.findByFullNameContainingIgnoreCase("Izzatbek").ifPresent(m -> {
-            if (m.getUser() == null) {
-                m.setUser(finalMentor1);
-                mentorRepository.save(m);
-            }
-        });
+        mentorRepository.findByFullNameIgnoreCase("Abdusharipov Izzatbek quranboy o'g'li")
+                .or(() -> mentorRepository.findFirstByFullNameContainingIgnoreCase("Izzatbek"))
+                .ifPresent(m -> {
+                    if (m.getUser() == null) {
+                        m.setUser(finalMentor1);
+                        mentorRepository.save(m);
+                    }
+                });
 
         User mentor2 = userRepository.findByUsername("32600002")
                 .or(() -> userRepository.findByEmailIgnoreCase("dilnoza.eng@gmail.com"))
@@ -890,24 +930,55 @@ public class DataSeeder implements CommandLineRunner {
             log.info("Existing English Mentor user updated to HEMIS ID: 32600002");
         }
         User finalMentor2 = mentor2;
-        mentorRepository.findByFullNameContainingIgnoreCase("Dilnoza").ifPresent(m -> {
-            if (m.getUser() == null) {
-                m.setUser(finalMentor2);
-                mentorRepository.save(m);
-            }
-        });
+        mentorRepository.findByFullNameIgnoreCase("Raximova Dilnoza Sanjarbek qizi")
+                .or(() -> mentorRepository.findFirstByFullNameContainingIgnoreCase("Dilnoza"))
+                .ifPresent(m -> {
+                    if (m.getUser() == null) {
+                        m.setUser(finalMentor2);
+                        mentorRepository.save(m);
+                    }
+                });
 
         // 3. Real Student accounts with HEMIS ID (42600001+)
         List<Student> allStudents = studentRepository.findAll();
-        int seq = 1;
+        Set<String> assignedIds = new HashSet<>();
+        Set<String> reservedIds = allStudents.stream()
+                .map(Student::getStudentIdNumber)
+                .filter(Objects::nonNull)
+                .filter(id -> !id.startsWith("I-HR"))
+                .map(String::trim)
+                .collect(java.util.stream.Collectors.toCollection(HashSet::new));
+
+        int nextSeq = 1;
         for (Student s : allStudents) {
-            String studentHemisId = String.format("426%05d", seq);
-            if (s.getStudentIdNumber() == null || s.getStudentIdNumber().startsWith("I-HR")) {
+            String currentId = s.getStudentIdNumber() != null ? s.getStudentIdNumber().trim() : null;
+            boolean needsNewId = currentId == null
+                    || currentId.startsWith("I-HR")
+                    || assignedIds.contains(currentId);
+
+            String studentHemisId = null;
+            if (needsNewId) {
+                while (nextSeq < 99999) {
+                    String candidate = String.format("426%05d", nextSeq);
+                    nextSeq++;
+                    if (!reservedIds.contains(candidate)
+                            && !assignedIds.contains(candidate)
+                            && !userRepository.existsByUsernameIgnoreCase(candidate)
+                            && studentRepository.findByStudentIdNumber(candidate).isEmpty()) {
+                        studentHemisId = candidate;
+                        break;
+                    }
+                }
+                if (studentHemisId == null) {
+                    studentHemisId = hemisIdGeneratorService.generateStudentId();
+                }
                 s.setStudentIdNumber(studentHemisId);
-                studentRepository.save(s);
+                s = studentRepository.save(s);
             } else {
-                studentHemisId = s.getStudentIdNumber();
+                studentHemisId = currentId;
             }
+            assignedIds.add(studentHemisId);
+            reservedIds.add(studentHemisId);
 
             final String hemisIdToSearch = studentHemisId;
             User studentUser = userRepository.findByUsername(hemisIdToSearch)
@@ -918,7 +989,7 @@ public class DataSeeder implements CommandLineRunner {
             if (studentRole != null) roles.add(studentRole);
 
             if (studentUser == null) {
-                userRepository.save(User.builder()
+                studentUser = userRepository.save(User.builder()
                         .username(hemisIdToSearch)
                         .password(passwordEncoder.encode("Student2026!"))
                         .fullName(s.getFullName())
@@ -935,14 +1006,13 @@ public class DataSeeder implements CommandLineRunner {
                 studentUser.setRoles(roles);
                 studentUser.setEnabled(true);
                 studentUser.setEmailVerified(true);
-                userRepository.save(studentUser);
+                studentUser = userRepository.save(studentUser);
             }
             User finalStudentUser = studentUser;
             if (finalStudentUser != null && s.getUser() == null) {
                 s.setUser(finalStudentUser);
                 studentRepository.save(s);
             }
-            seq++;
         }
     }
 

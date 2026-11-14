@@ -41,6 +41,15 @@ public class MentorProfileController {
         return ResponseEntity.ok(ApiResponse.ok("Mentor profili olindi", profile));
     }
 
+    @GetMapping("/me/profile")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Tizimga kirgan mentorning o'z profiling olish")
+    public ResponseEntity<ApiResponse<MentorProfileDto>> getCurrentMentorProfile() {
+        Long currentUserId = currentUserHelper.getCurrentUserId();
+        MentorProfileDto profile = mentorProfileService.getProfileByUserId(currentUserId);
+        return ResponseEntity.ok(ApiResponse.ok("Shaxsiy profil olindi", profile));
+    }
+
     @GetMapping("/{mentorId}/profile")
     @PreAuthorize("hasAuthority('mentors.read') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
     @Operation(summary = "Mentorning to'liq profiling olish (tahrirlash yoki admin ko'rishi uchun)")

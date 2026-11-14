@@ -33,6 +33,9 @@ public class Schedule extends BaseEntity {
     @Column(nullable = false)
     private String days; // "Seshanba-Payshanba-Shanba" or "Dushanba, Chorshanba, Juma"
 
+    @Column(name = "day_pattern")
+    private String dayPattern; // "ODD_DAYS", "EVEN_DAYS", "ALL_SIX_DAYS", "CUSTOM"
+
     @Column(nullable = false)
     private String startTime; // "15:00"
 

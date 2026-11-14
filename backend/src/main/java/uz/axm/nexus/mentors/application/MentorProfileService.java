@@ -58,6 +58,14 @@ public class MentorProfileService {
     }
 
     @Transactional(readOnly = true)
+    public MentorProfileDto getProfileByUserId(Long userId) {
+        if (userId == null) return null;
+        return mentorProfileRepository.findByUserId(userId)
+                .map(this::toFullDto)
+                .orElse(null);
+    }
+
+    @Transactional(readOnly = true)
     public List<MentorProfileDto> getAllProfilesForAdmin() {
         return mentorProfileRepository.findAll().stream()
                 .map(this::toFullDto)

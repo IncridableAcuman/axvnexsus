@@ -63,7 +63,23 @@ public class SuperAdminBootstrapService {
             return false;
         }
 
-        // 1. Refuse if an active SUPER_ADMIN already exists in the system
+        // 1. Validate parameters
+        if (bootstrapUsername == null || bootstrapUsername.trim().isBlank()) {
+            throw new IllegalStateException("SuperAdmin bootstrap failed: Username cannot be blank.");
+        }
+
+        if (bootstrapPassword == null || !PASSWORD_COMPLEXITY_PATTERN.matcher(bootstrapPassword).matches()) {
+            auditLogRepository.save(AuditLog.builder()
+                    .action("SUPERADMIN_BOOTSTRAP_FAILED")
+                    .entityName("User")
+                    .performedBy("SYSTEM_BOOTSTRAP")
+                    .outcome("FAILURE")
+                    .details("Bootstrap password rejected: Does not meet complexity rules (minimum 12 chars, upper, lower, digit, symbol).")
+                    .build());
+            throw new IllegalStateException("SuperAdmin bootstrap failed: Password does not meet required complexity standards (minimum 12 chars, upper, lower, digit, symbol). Never log passwords.");
+        }
+
+        // 2. Refuse if an active SUPER_ADMIN already exists in the system
         boolean superAdminExists = userRepository.findAll().stream()
                 .anyMatch(u -> u.isEnabled() && ("ROLE_SUPER_ADMIN".equalsIgnoreCase(u.getRole()) ||
                         "SUPER_ADMIN".equalsIgnoreCase(u.getRole()) ||
@@ -80,22 +96,6 @@ public class SuperAdminBootstrapService {
                     .details("Active SUPER_ADMIN already exists. Re-bootstrap request denied.")
                     .build());
             return false;
-        }
-
-        // 2. Validate parameters
-        if (bootstrapUsername == null || bootstrapUsername.trim().isBlank()) {
-            throw new IllegalStateException("SuperAdmin bootstrap failed: Username cannot be blank.");
-        }
-
-        if (bootstrapPassword == null || !PASSWORD_COMPLEXITY_PATTERN.matcher(bootstrapPassword).matches()) {
-            auditLogRepository.save(AuditLog.builder()
-                    .action("SUPERADMIN_BOOTSTRAP_FAILED")
-                    .entityName("User")
-                    .performedBy("SYSTEM_BOOTSTRAP")
-                    .outcome("FAILURE")
-                    .details("Bootstrap password rejected: Does not meet complexity rules (minimum 12 chars, upper, lower, digit, symbol).")
-                    .build());
-            throw new IllegalStateException("SuperAdmin bootstrap failed: Password does not meet required complexity standards (minimum 12 chars, upper, lower, digit, symbol). Never log passwords.");
         }
 
         // 3. Resolve SUPER_ADMIN role

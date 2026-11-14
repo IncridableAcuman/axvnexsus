@@ -36,11 +36,27 @@ public class ScheduleController {
         return ResponseEntity.ok(scheduleService.getAllSchedules());
     }
 
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('lessons.read') or isAuthenticated()")
+    @Operation(summary = "Bitta dars jadvalini olish")
+    public ResponseEntity<Schedule> getScheduleById(@PathVariable Long id) {
+        return scheduleService.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @PostMapping("/manual")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MENTOR')")
     @Operation(summary = "Qo'lda dars jadvali va o'quvchilar guruhini yaratish")
     public ResponseEntity<Schedule> createManualSchedule(@RequestBody ManualScheduleRequest request) {
         return ResponseEntity.ok(scheduleService.createManualSchedule(request));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN', 'MENTOR')")
+    @Operation(summary = "Dars jadvalini yangilash va tahrirlash")
+    public ResponseEntity<Schedule> updateSchedule(@PathVariable Long id, @RequestBody ManualScheduleRequest request) {
+        return ResponseEntity.ok(scheduleService.updateSchedule(id, request));
     }
 
     @DeleteMapping("/{id}")
