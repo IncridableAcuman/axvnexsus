@@ -124,4 +124,32 @@ public class AuthController {
         AuthResponse response = authService.getCurrentUser(userDetails.getUsername());
         return ResponseEntity.ok(ApiResponse.ok("Foydalanuvchi profili", response));
     }
+
+    @PostMapping("/change-password")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Joriy foydalanuvchi o'z parolini yangilashi")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Autentifikatsiyadan o'tilmagan"));
+        }
+        authService.changePassword(userDetails.getUsername(), request);
+        return ResponseEntity.ok(ApiResponse.ok("Parol muvaffaqiyatli o'zgartirildi", null));
+    }
+
+    @PutMapping("/profile")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Joriy foydalanuvchi shaxsiy kontakt va profil ma'lumotlarini tahrirlashi")
+    public ResponseEntity<ApiResponse<AuthResponse>> updateProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UpdateProfileRequest request
+    ) {
+        if (userDetails == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Autentifikatsiyadan o'tilmagan"));
+        }
+        AuthResponse updated = authService.updateProfile(userDetails.getUsername(), request);
+        return ResponseEntity.ok(ApiResponse.ok("Profil ma'lumotlari muvaffaqiyatli saqlandi", updated));
+    }
 }

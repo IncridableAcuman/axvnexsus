@@ -12,6 +12,9 @@ import {
   KeyRound,
   Copy,
   Check,
+  Eye,
+  Edit2,
+  Archive,
 } from 'lucide-react';
 import { studentApi } from '../api';
 import { useTranslation } from '@/shared/i18n';
@@ -33,6 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Dialog,
@@ -50,6 +54,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { CredentialSlipModal, type CredentialSlipData } from './common/CredentialSlipModal';
+import { StudentDetailsModal } from './students/StudentDetailsModal';
+import { EditStudentModal } from './students/EditStudentModal';
 
 interface StudentsListProps {
   students: Student[];
@@ -68,7 +74,20 @@ export const StudentsList: React.FC<StudentsListProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGrade, setSelectedGrade] = useState('all');
   const [selectedGroup, setSelectedGroup] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+  // Student Details & Edit Modals State
+  const [selectedStudentForDetails, setSelectedStudentForDetails] = useState<Student | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedStudentForEdit, setSelectedStudentForEdit] = useState<Student | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Archive Confirmation Dialog State
+  const [selectedStudentForArchive, setSelectedStudentForArchive] = useState<Student | null>(null);
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [archiveReason, setArchiveReason] = useState('');
+  const [isArchiving, setIsArchiving] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -99,14 +118,21 @@ export const StudentsList: React.FC<StudentsListProps> = ({
       const groupMatch =
         selectedGroup === 'all' || (s.studyGroup && s.studyGroup.groupCode === selectedGroup);
 
-      return searchMatch && gradeMatch && groupMatch;
+      const statusMatch =
+        selectedStatus === 'all' ||
+        s.status === selectedStatus ||
+        (selectedStatus === 'ACTIVE' && s.status === 'Faol') ||
+        (selectedStatus === 'ARCHIVED' && s.status === 'Arxivlangan') ||
+        (selectedStatus === 'INACTIVE' && s.status === 'Nofaol');
+
+      return searchMatch && gradeMatch && groupMatch && statusMatch;
     });
-  }, [students, searchTerm, selectedGrade, selectedGroup]);
+  }, [students, searchTerm, selectedGrade, selectedGroup, selectedStatus]);
 
   // Reset to first page when search or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedGrade, selectedGroup, pageSize]);
+  }, [searchTerm, selectedGrade, selectedGroup, selectedStatus, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(filteredStudents.length / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
@@ -123,6 +149,23 @@ export const StudentsList: React.FC<StudentsListProps> = ({
       } catch {
         alert(t('students.deleteError'));
       }
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!selectedStudentForArchive) return;
+    try {
+      setIsArchiving(true);
+      await studentApi.archive(selectedStudentForArchive.id, archiveReason || undefined);
+      setIsArchiveDialogOpen(false);
+      setSelectedStudentForArchive(null);
+      setArchiveReason('');
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+      alert('O‘quvchini arxivlashda xatolik yuz berdi');
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -225,7 +268,11 @@ export const StudentsList: React.FC<StudentsListProps> = ({
     }
   };
 
-  const isFiltered = searchTerm !== '' || selectedGrade !== 'all' || selectedGroup !== 'all';
+  const isFiltered =
+    searchTerm !== '' ||
+    selectedGrade !== 'all' ||
+    selectedGroup !== 'all' ||
+    selectedStatus !== 'all';
 
   return (
     <div className="space-y-6 animate-fade-in-up">
@@ -384,6 +431,18 @@ export const StudentsList: React.FC<StudentsListProps> = ({
               </SelectContent>
             </Select>
 
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-full sm:w-[130px] h-9.5 text-xs rounded-xl bg-card border-0 shadow-2xs focus:ring-1">
+                <SelectValue placeholder="Holat" />
+              </SelectTrigger>
+              <SelectContent className="border-0 shadow-xl rounded-xl bg-card">
+                <SelectItem value="all">Barcha holatlar</SelectItem>
+                <SelectItem value="ACTIVE">Faol</SelectItem>
+                <SelectItem value="INACTIVE">Nofaol</SelectItem>
+                <SelectItem value="ARCHIVED">Arxivlangan</SelectItem>
+              </SelectContent>
+            </Select>
+
             {isFiltered && (
               <Button
                 variant="ghost"
@@ -392,6 +451,7 @@ export const StudentsList: React.FC<StudentsListProps> = ({
                   setSearchTerm('');
                   setSelectedGrade('all');
                   setSelectedGroup('all');
+                  setSelectedStatus('all');
                 }}
                 className="h-9.5 text-xs text-muted-foreground hover:text-foreground px-2.5 rounded-xl cursor-pointer shrink-0"
               >
@@ -537,12 +597,51 @@ export const StudentsList: React.FC<StudentsListProps> = ({
                           <Button
                             variant="ghost"
                             size="icon"
+                            onClick={() => {
+                              setSelectedStudentForDetails(st);
+                              setIsDetailsModalOpen(true);
+                            }}
+                            className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                            title="O‘quvchi profiling ko‘rish"
+                            aria-label="O‘quvchi profiling ko‘rish"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedStudentForEdit(st);
+                              setIsEditModalOpen(true);
+                            }}
+                            className="h-8 w-8 text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10 transition-colors cursor-pointer"
+                            title="Tahrirlash"
+                            aria-label="Tahrirlash"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleResetPassword(st)}
                             className="h-8 w-8 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-colors cursor-pointer"
                             title="Yangi parol yaratish (HEMIS)"
                             aria-label="Yangi parol yaratish"
                           >
                             <KeyRound className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedStudentForArchive(st);
+                              setIsArchiveDialogOpen(true);
+                            }}
+                            className="h-8 w-8 text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            title="Xavfsiz arxivlash"
+                            aria-label="Xavfsiz arxivlash"
+                          >
+                            <Archive className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -800,6 +899,116 @@ export const StudentsList: React.FC<StudentsListProps> = ({
         onClose={() => setIsCredentialModalOpen(false)}
         data={credentialData}
       />
+
+      {/* 6. Student Detailed Profile Modal */}
+      {selectedStudentForDetails && (
+        <StudentDetailsModal
+          isOpen={isDetailsModalOpen}
+          onClose={() => {
+            setIsDetailsModalOpen(false);
+            setSelectedStudentForDetails(null);
+          }}
+          student={selectedStudentForDetails}
+          onEdit={(st) => {
+            setIsDetailsModalOpen(false);
+            setSelectedStudentForEdit(st);
+            setIsEditModalOpen(true);
+          }}
+          onResetPassword={(st) => {
+            setIsDetailsModalOpen(false);
+            handleResetPassword(st);
+          }}
+        />
+      )}
+
+      {/* 7. Edit Student Modal */}
+      {selectedStudentForEdit && (
+        <EditStudentModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setSelectedStudentForEdit(null);
+          }}
+          student={selectedStudentForEdit}
+          groups={groups}
+          onSuccess={onRefresh}
+        />
+      )}
+
+      {/* 8. Safe Archive Confirmation Dialog */}
+      <Dialog
+        open={isArchiveDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsArchiveDialogOpen(false);
+            setSelectedStudentForArchive(null);
+            setArchiveReason('');
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md border-0 rounded-3xl shadow-2xl bg-card text-card-foreground p-6 sm:p-7">
+          <DialogHeader className="space-y-1 text-left">
+            <DialogTitle className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+              <Archive className="w-5 h-5 text-rose-500" />
+              <span>O‘quvchini Arxivlash</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              O‘quvchi arxivlanganda uning tizimga kirish huquqi to‘xtatiladi, ammo barcha dars davomatlari, baholari va akademik tarixi to‘liq saqlanib qoladi.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedStudentForArchive && (
+            <div className="space-y-3 pt-2">
+              <div className="p-3.5 rounded-2xl bg-muted/40 border border-border/10 space-y-1">
+                <span className="text-[11px] text-muted-foreground font-semibold">O‘quvchi:</span>
+                <p className="text-sm font-bold text-foreground">{selectedStudentForArchive.fullName}</p>
+                <p className="text-xs font-mono text-muted-foreground">ID: {selectedStudentForArchive.studentIdNumber || '—'}</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="archive-reason" className="text-xs font-semibold">
+                  Arxivlash sababi (ixtiyoriy)
+                </Label>
+                <Textarea
+                  id="archive-reason"
+                  value={archiveReason}
+                  onChange={(e) => setArchiveReason(e.target.value)}
+                  placeholder="Masalan: Boshqa ta'lim muassasasiga ko'chib o'tdi..."
+                  className="rounded-xl text-xs resize-none h-20"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex items-center justify-end gap-2 pt-4 border-t border-border/10">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsArchiveDialogOpen(false);
+                setSelectedStudentForArchive(null);
+                setArchiveReason('');
+              }}
+              disabled={isArchiving}
+              className="rounded-xl text-xs cursor-pointer"
+            >
+              Bekor qilish
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleArchive}
+              disabled={isArchiving}
+              className="rounded-xl text-xs font-bold gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Archive className="w-3.5 h-3.5" />
+              <span>{isArchiving ? 'Arxivlanmoqda...' : 'Arxivlashni tasdiqlash'}</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

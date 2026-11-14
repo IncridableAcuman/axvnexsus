@@ -140,8 +140,11 @@ export const resolveTranslation = (
   }, current);
 };
 
-export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [locale, setLocaleState] = useState<SupportedLocale>(resolveInitialLocale);
+export const I18nProvider: React.FC<{ children: React.ReactNode; initialLocale?: SupportedLocale }> = ({
+  children,
+  initialLocale,
+}) => {
+  const [locale, setLocaleState] = useState<SupportedLocale>(() => initialLocale || resolveInitialLocale());
 
   // Synchronize on mount if authenticated user has backend preference
   useEffect(() => {

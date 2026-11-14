@@ -62,8 +62,9 @@ import type {
   SystemConfigItem,
   OperationalHealth,
 } from '@/types';
+import { TimeSlotManagement } from './TimeSlotManagement';
 
-type AdminTab = 'overview' | 'users' | 'audit' | 'moderation' | 'config' | 'health';
+type AdminTab = 'overview' | 'users' | 'audit' | 'moderation' | 'config' | 'health' | 'timeslots';
 
 export const AdminControlCenter: React.FC = () => {
   const { t, formatRelative } = useTranslation();
@@ -437,6 +438,21 @@ export const AdminControlCenter: React.FC = () => {
         >
           <HeartPulse className="w-4 h-4" />
           <span>{t('admin.tabs.health')}</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'timeslots'}
+          onClick={() => setActiveTab('timeslots')}
+          className={`border-0 flex items-center gap-2 px-4 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap font-semibold ${
+            activeTab === 'timeslots'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          <span>{t('scheduling.timeSlotsTitle')}</span>
         </button>
       </div>
 
@@ -1129,6 +1145,13 @@ export const AdminControlCenter: React.FC = () => {
             </Card>
           </div>
         </div>
+      )}
+
+      {/* ========================================================
+          TAB 7: Configurable Lesson Time Slots
+      ======================================================== */}
+      {activeTab === 'timeslots' && (
+        <TimeSlotManagement />
       )}
 
       {/* ========================================================

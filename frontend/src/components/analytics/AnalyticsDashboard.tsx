@@ -63,11 +63,27 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ groups, 
   const [activeView, setActiveView] = useState<'overview' | 'group' | 'student' | 'rules'>('overview');
 
   // Filters
-  const [selectedGroupId, setSelectedGroupId] = useState<number>(groups[0]?.id || 10);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | undefined>(groups[0]?.id);
   const [selectedStudentId, setSelectedStudentId] = useState<number | undefined>(students[0]?.id);
   const [dateRangePreset, setDateRangePreset] = useState<'7d' | '30d' | 'semester' | 'custom'>('30d');
   const [customFrom, setCustomFrom] = useState<string>('');
   const [customTo, setCustomTo] = useState<string>('');
+
+  useEffect(() => {
+    if (groups.length > 0) {
+      if (!selectedGroupId || !groups.some((g) => g.id === selectedGroupId)) {
+        setSelectedGroupId(groups[0].id);
+      }
+    }
+  }, [groups]);
+
+  useEffect(() => {
+    if (students.length > 0) {
+      if (!selectedStudentId || !students.some((s) => s.id === selectedStudentId)) {
+        setSelectedStudentId(students[0].id);
+      }
+    }
+  }, [students]);
 
   // Data states
   const [loading, setLoading] = useState<boolean>(true);

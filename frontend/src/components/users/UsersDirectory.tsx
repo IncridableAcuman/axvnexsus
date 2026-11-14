@@ -41,6 +41,7 @@ import { userApi } from '@/api';
 import { RoleAssignmentModal } from './RoleAssignmentModal';
 import { UserDetailsModal } from './UserDetailsModal';
 import { PermissionOverviewModal } from './PermissionOverviewModal';
+import { CreateUserModal } from './CreateUserModal';
 import type { UserDto } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -63,6 +64,7 @@ export const UsersDirectory: React.FC = () => {
   const [userToToggleStatus, setUserToToggleStatus] = useState<UserDto | null>(null);
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [isPermOverviewOpen, setIsPermOverviewOpen] = useState(false);
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [isTogglingStatus, setIsTogglingStatus] = useState(false);
 
   useEffect(() => {
@@ -174,15 +176,11 @@ export const UsersDirectory: React.FC = () => {
 
             <Button
               size="sm"
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  window.location.href = '/register';
-                }
-              }}
-              className="bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-lg shadow-indigo-600/30 font-semibold border-0 rounded-xl"
+              onClick={() => setIsCreateUserOpen(true)}
+              className="bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white shadow-lg shadow-indigo-600/30 font-semibold border-0 rounded-xl cursor-pointer"
             >
               <UserPlus className="w-4 h-4 mr-1.5" />
-              <span>Foydalanuvchi qo‘shish</span>
+              <span>Yangi xodim qo‘shish</span>
             </Button>
           </div>
         </div>
@@ -577,6 +575,12 @@ export const UsersDirectory: React.FC = () => {
           </DialogContent>
         </Dialog>
       )}
+      {/* Create User Modal */}
+      <CreateUserModal
+        isOpen={isCreateUserOpen}
+        onClose={() => setIsCreateUserOpen(false)}
+        onSuccess={fetchUsers}
+      />
     </div>
   );
 };

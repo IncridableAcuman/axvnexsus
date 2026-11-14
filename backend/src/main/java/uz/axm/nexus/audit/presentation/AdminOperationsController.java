@@ -28,7 +28,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping({"/api/admin", "/api/v1/admin"})
 @RequiredArgsConstructor
 @Tag(name = "Admin Operations & Audit", description = "Modul 04: Administratorlik operatsiyalari, tizim monitoringi, audit jurnallari va kontent moderatsiyasi")
 public class AdminOperationsController {

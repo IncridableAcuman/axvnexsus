@@ -10,7 +10,9 @@ import java.util.Optional;
 @Repository
 public interface MentorRepository extends JpaRepository<Mentor, Long> {
     Optional<Mentor> findByFullNameIgnoreCase(String fullName);
-    Optional<Mentor> findByFullNameContainingIgnoreCase(String fullName);
+    Optional<Mentor> findFirstByFullNameIgnoreCase(String fullName);
+    Optional<Mentor> findFirstByFullNameContainingIgnoreCase(String fullName);
+    List<Mentor> findByFullNameContainingIgnoreCase(String fullName);
     Optional<Mentor> findByUserId(Long userId);
     List<Mentor> findByBranchId(Long branchId);
     long countByBranchId(Long branchId);

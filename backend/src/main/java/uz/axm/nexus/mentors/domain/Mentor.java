@@ -39,4 +39,8 @@ public class Mentor extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String bio;
+
+    @Builder.Default
+    @Column(nullable = false, length = 50)
+    private String status = "ACTIVE"; // "ACTIVE", "INACTIVE", "ARCHIVED"
 }

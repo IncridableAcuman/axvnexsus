@@ -16,9 +16,12 @@ public class ManualScheduleRequest {
     private String mentorName;
     private String mentorRole;
     private String branchLocation;
+    private Long branchId;
     private String groupCode;
     private String gradeLevel;
     private String subject;
+    private String dayPattern;
+    private List<String> selectedDays;
     private String days;
     private String startTime;
     private String endTime;

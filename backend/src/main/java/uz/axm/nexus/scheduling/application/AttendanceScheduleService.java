@@ -11,15 +11,20 @@ import uz.axm.nexus.classrooms.infrastructure.GroupMembershipRepository;
 import uz.axm.nexus.classrooms.infrastructure.StudyGroupRepository;
 import uz.axm.nexus.mentors.domain.Mentor;
 import uz.axm.nexus.mentors.infrastructure.MentorRepository;
+import uz.axm.nexus.scheduling.domain.AcademicWeekday;
 import uz.axm.nexus.scheduling.domain.AttendanceRecord;
+import uz.axm.nexus.scheduling.domain.DayPatternResolver;
 import uz.axm.nexus.scheduling.domain.LessonSession;
+import uz.axm.nexus.scheduling.domain.Schedule;
 import uz.axm.nexus.scheduling.infrastructure.AttendanceRecordRepository;
 import uz.axm.nexus.scheduling.infrastructure.LessonSessionRepository;
+import uz.axm.nexus.scheduling.infrastructure.ScheduleRepository;
 import uz.axm.nexus.shared.application.BusinessException;
 import uz.axm.nexus.shared.application.ResourceNotFoundException;
 import uz.axm.nexus.users.domain.Student;
 import uz.axm.nexus.users.infrastructure.StudentRepository;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -38,6 +43,7 @@ public class AttendanceScheduleService {
     private final StudentRepository studentRepository;
     private final GroupMembershipRepository groupMembershipRepository;
     private final AuditService auditService;
+    private final ScheduleRepository scheduleRepository;
 
     private static final Set<String> VALID_ATTENDANCE_STATUSES = Set.of("PRESENT", "ABSENT", "LATE", "EXCUSED");
 
@@ -55,10 +61,17 @@ public class AttendanceScheduleService {
             sessions = lessonSessionRepository.findByLessonDateBetween(startDate, endDate);
         }
 
-        return sessions.stream()
-                .sorted(Comparator.comparing(LessonSession::getLessonDate).thenComparing(LessonSession::getStartTime))
+        List<LessonSessionDto> result = sessions.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
+
+        // Virtual calendar projection for recurring schedules
+        projectRecurringSchedules(result, startDate, endDate, mentorId, groupId);
+
+        result.sort(Comparator.comparing(LessonSessionDto::getLessonDate)
+                .thenComparing(dto -> dto.getStartTime() != null ? dto.getStartTime() : "00:00"));
+
+        return result;
     }
 
     @Transactional(readOnly = true)
@@ -68,14 +81,27 @@ public class AttendanceScheduleService {
                 ? lessonSessionRepository.findByMentorIdAndLessonDate(mentorId, today)
                 : lessonSessionRepository.findByLessonDate(today);
 
-        return sessions.stream()
-                .sorted(Comparator.comparing(LessonSession::getStartTime))
+        List<LessonSessionDto> result = sessions.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
+
+        projectRecurringSchedules(result, today, today, mentorId, null);
+
+        result.sort(Comparator.comparing(dto -> dto.getStartTime() != null ? dto.getStartTime() : "00:00"));
+
+        return result;
     }
 
     @Transactional(readOnly = true)
     public LessonSessionDto getSessionById(Long id) {
+        if (id != null && id < 0) {
+            long scheduleId = (-id) / 1000000L;
+            long epochDay = (-id) % 1000000L;
+            LocalDate date = LocalDate.ofEpochDay(epochDay);
+            Schedule schedule = scheduleRepository.findById(scheduleId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Dars jadvali topilmadi: #" + scheduleId));
+            return toProjectedDto(schedule, id, date);
+        }
         LessonSession session = lessonSessionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Dars mashg'uloti topilmadi: #" + id));
         return toDto(session);
@@ -123,8 +149,30 @@ public class AttendanceScheduleService {
     public LessonSessionDto rescheduleSession(Long id, RescheduleLessonRequest request, String actor) {
         validateTimes(request.getNewStartTime(), request.getNewEndTime());
 
-        LessonSession session = lessonSessionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Dars mashg'uloti topilmadi: #" + id));
+        LessonSession session;
+        if (id != null && id < 0) {
+            long scheduleId = (-id) / 1000000L;
+            long epochDay = (-id) % 1000000L;
+            LocalDate origDate = LocalDate.ofEpochDay(epochDay);
+            Schedule schedule = scheduleRepository.findById(scheduleId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Dars jadvali topilmadi: #" + scheduleId));
+            LessonSession newSession = LessonSession.builder()
+                    .schedule(schedule)
+                    .group(schedule.getStudyGroup())
+                    .mentor(schedule.getMentor())
+                    .room(schedule.getRoom())
+                    .subject(schedule.getSubject())
+                    .topic(schedule.getTopic())
+                    .lessonDate(origDate)
+                    .startTime(schedule.getStartTime())
+                    .endTime(schedule.getEndTime())
+                    .status("SCHEDULED")
+                    .build();
+            session = lessonSessionRepository.save(newSession);
+        } else {
+            session = lessonSessionRepository.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Dars mashg'uloti topilmadi: #" + id));
+        }
 
         String room = request.getNewRoom() != null && !request.getNewRoom().isBlank()
                 ? request.getNewRoom().trim()
@@ -154,8 +202,30 @@ public class AttendanceScheduleService {
 
     @Transactional
     public LessonSessionDto cancelSession(Long id, CancelLessonRequest request, String actor) {
-        LessonSession session = lessonSessionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Dars mashg'uloti topilmadi: #" + id));
+        LessonSession session;
+        if (id != null && id < 0) {
+            long scheduleId = (-id) / 1000000L;
+            long epochDay = (-id) % 1000000L;
+            LocalDate origDate = LocalDate.ofEpochDay(epochDay);
+            Schedule schedule = scheduleRepository.findById(scheduleId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Dars jadvali topilmadi: #" + scheduleId));
+            LessonSession newSession = LessonSession.builder()
+                    .schedule(schedule)
+                    .group(schedule.getStudyGroup())
+                    .mentor(schedule.getMentor())
+                    .room(schedule.getRoom())
+                    .subject(schedule.getSubject())
+                    .topic(schedule.getTopic())
+                    .lessonDate(origDate)
+                    .startTime(schedule.getStartTime())
+                    .endTime(schedule.getEndTime())
+                    .status("SCHEDULED")
+                    .build();
+            session = lessonSessionRepository.save(newSession);
+        } else {
+            session = lessonSessionRepository.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Dars mashg'uloti topilmadi: #" + id));
+        }
 
         session.setStatus("CANCELLED");
         session.setCancellationReason(request.getReason());
@@ -169,8 +239,33 @@ public class AttendanceScheduleService {
 
     @Transactional
     public LessonSessionDto submitAttendance(Long sessionId, SubmitAttendanceRequest request, String actor) {
-        LessonSession session = lessonSessionRepository.findById(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Dars mashg'uloti topilmadi: #" + sessionId));
+        final Long requestedSessionId = sessionId;
+        LessonSession session;
+        if (requestedSessionId != null && requestedSessionId < 0) {
+            long scheduleId = (-requestedSessionId) / 1000000L;
+            long epochDay = (-requestedSessionId) % 1000000L;
+            LocalDate origDate = LocalDate.ofEpochDay(epochDay);
+            Schedule schedule = scheduleRepository.findById(scheduleId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Dars jadvali topilmadi: #" + scheduleId));
+            LessonSession newSession = LessonSession.builder()
+                    .schedule(schedule)
+                    .group(schedule.getStudyGroup())
+                    .mentor(schedule.getMentor())
+                    .room(schedule.getRoom())
+                    .subject(schedule.getSubject())
+                    .topic(schedule.getTopic())
+                    .lessonDate(origDate)
+                    .startTime(schedule.getStartTime())
+                    .endTime(schedule.getEndTime())
+                    .status("SCHEDULED")
+                    .build();
+            session = lessonSessionRepository.save(newSession);
+        } else {
+            session = lessonSessionRepository.findById(requestedSessionId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Dars mashg'uloti topilmadi: #" + requestedSessionId));
+        }
+
+        final Long resolvedSessionId = session.getId();
 
         if ("CANCELLED".equalsIgnoreCase(session.getStatus())) {
             throw new BusinessException("Bekor qilingan dars uchun davomat kiritib bo'lmaydi!");
@@ -188,7 +283,7 @@ public class AttendanceScheduleService {
             Student student = studentRepository.findById(item.getStudentId())
                     .orElseThrow(() -> new ResourceNotFoundException("O'quvchi topilmadi: #" + item.getStudentId()));
 
-            AttendanceRecord record = attendanceRecordRepository.findByLessonSessionIdAndStudentId(sessionId, item.getStudentId())
+            AttendanceRecord record = attendanceRecordRepository.findByLessonSessionIdAndStudentId(resolvedSessionId, item.getStudentId())
                     .orElseGet(() -> AttendanceRecord.builder()
                             .lessonSession(session)
                             .student(student)
@@ -213,7 +308,7 @@ public class AttendanceScheduleService {
             lessonSessionRepository.save(session);
         }
 
-        auditService.logAction("ATTENDANCE_RECORDED", "LessonSession", String.valueOf(sessionId), actor,
+        auditService.logAction("ATTENDANCE_RECORDED", "LessonSession", String.valueOf(resolvedSessionId), actor,
                 "Davomat qayd etildi (Qatnashdi: " + presentCount + ", Qatnashmadi: " + absentCount + ")");
 
         return toDto(session);
@@ -224,7 +319,17 @@ public class AttendanceScheduleService {
         for (LessonSession s : existing) {
             if (excludeSessionId != null && s.getId().equals(excludeSessionId)) continue;
             if (isTimeOverlap(start, end, s.getStartTime(), s.getEndTime())) {
-                throw new BusinessException("Mentor uchun darslar vaqtida to'qnashuv (Conflict) mavjud! Mentor ushbu vaqtda boshqa darsga ega (" + s.getGroup().getGroupCode() + ": " + s.getStartTime() + " - " + s.getEndTime() + ")");
+                String grpCode = (s.getGroup() != null) ? s.getGroup().getGroupCode() : "Boshqa guruh";
+                String msg = "Mentor uchun darslar vaqtida to'qnashuv (Conflict) mavjud! Mentor ushbu vaqtda boshqa darsga ega (" + grpCode + ": " + s.getStartTime() + " - " + s.getEndTime() + ")";
+                ConflictDetailDto detail = ConflictDetailDto.builder()
+                        .type("MENTOR")
+                        .weekday(date.getDayOfWeek().name())
+                        .resourceName(s.getMentor() != null ? s.getMentor().getFullName() : "Mentor")
+                        .existingGroupCode(grpCode)
+                        .startTime(s.getStartTime())
+                        .endTime(s.getEndTime())
+                        .build();
+                throw new ScheduleConflictException(msg, List.of(detail));
             }
         }
     }
@@ -234,9 +339,106 @@ public class AttendanceScheduleService {
         for (LessonSession s : existing) {
             if (excludeSessionId != null && s.getId().equals(excludeSessionId)) continue;
             if (isTimeOverlap(start, end, s.getStartTime(), s.getEndTime())) {
-                throw new BusinessException("Xona (" + room + ") ushbu vaqtda band! Unda " + s.getGroup().getGroupCode() + " darsi mavjud (" + s.getStartTime() + " - " + s.getEndTime() + ")");
+                String grpCode = (s.getGroup() != null) ? s.getGroup().getGroupCode() : "boshqa dars";
+                String msg = "Xona (" + room + ") ushbu vaqtda band! Unda " + grpCode + " darsi mavjud (" + s.getStartTime() + " - " + s.getEndTime() + ")";
+                ConflictDetailDto detail = ConflictDetailDto.builder()
+                        .type("CLASSROOM")
+                        .weekday(date.getDayOfWeek().name())
+                        .resourceName(room)
+                        .existingGroupCode(grpCode)
+                        .startTime(s.getStartTime())
+                        .endTime(s.getEndTime())
+                        .build();
+                throw new ScheduleConflictException(msg, List.of(detail));
             }
         }
+    }
+
+    private void projectRecurringSchedules(List<LessonSessionDto> result, LocalDate startDate, LocalDate endDate, Long mentorId, Long groupId) {
+        Set<String> existingKeys = new HashSet<>();
+        for (LessonSessionDto s : result) {
+            if (s.getGroupId() != null && s.getLessonDate() != null) {
+                existingKeys.add(s.getGroupId() + "_" + s.getLessonDate());
+            }
+        }
+
+        List<Schedule> schedules = scheduleRepository.findAll();
+        for (Schedule s : schedules) {
+            if (s.getStudyGroup() == null) continue;
+            if (groupId != null && !groupId.equals(s.getStudyGroup().getId())) continue;
+            if (mentorId != null && (s.getMentor() == null || !mentorId.equals(s.getMentor().getId()))) continue;
+
+            List<AcademicWeekday> activeWeekdays = DayPatternResolver.parseWeekdays(
+                    s.getDayPattern() != null ? s.getDayPattern() : s.getDays()
+            );
+            if (activeWeekdays.isEmpty() && s.getDays() != null) {
+                activeWeekdays = DayPatternResolver.parseWeekdays(s.getDays());
+            }
+            if (activeWeekdays.isEmpty()) continue;
+
+            Set<DayOfWeek> targetDays = activeWeekdays.stream()
+                    .map(AcademicWeekday::getDayOfWeek)
+                    .collect(Collectors.toSet());
+
+            for (LocalDate d = startDate; !d.isAfter(endDate); d = d.plusDays(1)) {
+                if (targetDays.contains(d.getDayOfWeek())) {
+                    String key = s.getStudyGroup().getId() + "_" + d;
+                    if (!existingKeys.contains(key)) {
+                        long epochDay = d.toEpochDay();
+                        long virtualId = -(s.getId() * 1000000L + Math.abs(epochDay));
+                        result.add(toProjectedDto(s, virtualId, d));
+                        existingKeys.add(key);
+                    }
+                }
+            }
+        }
+    }
+
+    private LessonSessionDto toProjectedDto(Schedule s, Long virtualId, LocalDate date) {
+        int studentCount = (s.getStudyGroup() != null && s.getStudyGroup().getStudentCount() != null)
+                ? s.getStudyGroup().getStudentCount()
+                : 0;
+
+        List<AttendanceItemDto> itemDtos = new ArrayList<>();
+        if (s.getStudyGroup() != null) {
+            List<GroupMembership> members = groupMembershipRepository.findByGroupIdAndStatus(s.getStudyGroup().getId(), "ACTIVE");
+            for (GroupMembership gm : members) {
+                if (gm.getStudent() != null) {
+                    itemDtos.add(AttendanceItemDto.builder()
+                            .studentId(gm.getStudent().getId())
+                            .studentName(gm.getStudent().getFullName())
+                            .status("PRESENT")
+                            .build());
+                }
+            }
+        }
+        if (studentCount == 0) {
+            studentCount = itemDtos.size();
+        }
+
+        return LessonSessionDto.builder()
+                .id(virtualId)
+                .scheduleId(s.getId())
+                .groupId(s.getStudyGroup() != null ? s.getStudyGroup().getId() : null)
+                .groupCode(s.getStudyGroup() != null ? s.getStudyGroup().getGroupCode() : null)
+                .gradeLevel(s.getGradeLevel())
+                .mentorId(s.getMentor() != null ? s.getMentor().getId() : null)
+                .mentorName(s.getMentor() != null ? s.getMentor().getFullName() : null)
+                .room(s.getRoom())
+                .subject(s.getSubject())
+                .topic(s.getTopic())
+                .lessonDate(date)
+                .startTime(s.getStartTime())
+                .endTime(s.getEndTime())
+                .status("SCHEDULED")
+                .attendanceRecorded(false)
+                .presentCount(0)
+                .absentCount(0)
+                .lateCount(0)
+                .excusedCount(0)
+                .totalStudents(studentCount)
+                .attendanceRecords(itemDtos)
+                .build();
     }
 
     private boolean isTimeOverlap(String start1, String end1, String start2, String end2) {

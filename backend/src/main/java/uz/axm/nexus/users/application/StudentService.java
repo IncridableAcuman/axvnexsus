@@ -8,6 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 import uz.axm.nexus.access.domain.Role;
 import uz.axm.nexus.access.infrastructure.RoleRepository;
 import uz.axm.nexus.audit.application.AuditService;
+import uz.axm.nexus.branches.domain.Branch;
+import uz.axm.nexus.branches.infrastructure.BranchRepository;
+import uz.axm.nexus.classrooms.application.GroupMembershipDto;
 import uz.axm.nexus.classrooms.domain.GroupMembership;
 import uz.axm.nexus.classrooms.domain.StudyGroup;
 import uz.axm.nexus.classrooms.infrastructure.GroupMembershipRepository;
@@ -15,7 +18,9 @@ import uz.axm.nexus.classrooms.infrastructure.StudyGroupRepository;
 import uz.axm.nexus.identity.application.HemisIdGeneratorService;
 import uz.axm.nexus.identity.application.ResetPasswordResultDto;
 import uz.axm.nexus.mentors.domain.Mentor;
+import uz.axm.nexus.mentors.infrastructure.MentorRepository;
 import uz.axm.nexus.shared.application.BusinessException;
+import uz.axm.nexus.shared.application.ResourceNotFoundException;
 import uz.axm.nexus.users.domain.Student;
 import uz.axm.nexus.users.domain.User;
 import uz.axm.nexus.users.infrastructure.StudentRepository;
@@ -39,6 +44,8 @@ public class StudentService {
     private final HemisIdGeneratorService hemisIdGeneratorService;
     private final StudyGroupRepository studyGroupRepository;
     private final GroupMembershipRepository groupMembershipRepository;
+    private final BranchRepository branchRepository;
+    private final MentorRepository mentorRepository;
     private final AuditService auditService;
 
     public List<Student> getAllStudents() {
@@ -322,13 +329,299 @@ public class StudentService {
         return saved;
     }
 
+    public List<Student> searchStudents(String gradeLevel, Long mentorId, Long groupId, Long branchId, String status, String search) {
+        List<Student> students = studentRepository.findAll();
+
+        if (gradeLevel != null && !gradeLevel.isBlank() && !gradeLevel.equalsIgnoreCase("all")) {
+            students = students.stream()
+                    .filter(s -> gradeLevel.equalsIgnoreCase(s.getGradeLevel()))
+                    .toList();
+        }
+        if (mentorId != null) {
+            students = students.stream()
+                    .filter(s -> s.getMentor() != null && mentorId.equals(s.getMentor().getId()))
+                    .toList();
+        }
+        if (groupId != null) {
+            students = students.stream()
+                    .filter(s -> s.getStudyGroup() != null && groupId.equals(s.getStudyGroup().getId()))
+                    .toList();
+        }
+        if (branchId != null) {
+            students = students.stream()
+                    .filter(s -> (s.getBranch() != null && branchId.equals(s.getBranch().getId())))
+                    .toList();
+        }
+        if (status != null && !status.isBlank() && !status.equalsIgnoreCase("all")) {
+            students = students.stream()
+                    .filter(s -> s.getStatus() != null && (
+                            s.getStatus().equalsIgnoreCase(status) ||
+                            (status.equalsIgnoreCase("ACTIVE") && s.getStatus().equalsIgnoreCase("Faol")) ||
+                            (status.equalsIgnoreCase("INACTIVE") && s.getStatus().equalsIgnoreCase("Nofaol")) ||
+                            (status.equalsIgnoreCase("ARCHIVED") && s.getStatus().equalsIgnoreCase("Arxivlangan"))
+                    ))
+                    .toList();
+        }
+        if (search != null && !search.isBlank()) {
+            String q = search.trim().toLowerCase();
+            students = students.stream()
+                    .filter(s -> (s.getFullName() != null && s.getFullName().toLowerCase().contains(q)) ||
+                                 (s.getStudentIdNumber() != null && s.getStudentIdNumber().toLowerCase().contains(q)) ||
+                                 (s.getPinfl() != null && s.getPinfl().contains(q)) ||
+                                 (s.getPhone() != null && s.getPhone().contains(q)))
+                    .toList();
+        }
+
+        return students;
+    }
+
+    public StudentDetailDto getStudentDetailById(Long id) {
+        Student student = studentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("O'quvchi topilmadi: #" + id));
+        return toDetailDto(student);
+    }
+
+    @Transactional
+    public StudentDetailDto updateStudent(Long id, UpdateStudentRequest request, String actor) {
+        Student student = studentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("O'quvchi topilmadi: #" + id));
+
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            student.setFullName(request.getFullName().trim());
+        }
+        if (request.getPhone() != null) {
+            student.setPhone(request.getPhone().trim());
+        }
+        if (request.getPinfl() != null) {
+            student.setPinfl(request.getPinfl().trim());
+        }
+        if (request.getGradeLevel() != null && !request.getGradeLevel().isBlank()) {
+            student.setGradeLevel(request.getGradeLevel().trim());
+        }
+        if (request.getDistrict() != null) {
+            student.setDistrict(request.getDistrict().trim());
+        }
+        if (request.getDirection() != null) {
+            student.setDirection(request.getDirection().trim());
+        }
+
+        // Branch update
+        if (request.getBranchId() != null) {
+            Branch branch = branchRepository.findById(request.getBranchId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Filial topilmadi: #" + request.getBranchId()));
+            student.setBranch(branch);
+            student.setBranchLocation(branch.getName());
+        } else if (request.getBranchLocation() != null && !request.getBranchLocation().isBlank()) {
+            student.setBranchLocation(request.getBranchLocation().trim());
+        }
+
+        // Mentor update
+        if (request.getMentorId() != null) {
+            Mentor mentor = mentorRepository.findById(request.getMentorId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Mentor topilmadi: #" + request.getMentorId()));
+            student.setMentor(mentor);
+        }
+
+        // StudyGroup update / transfer handling
+        if (request.getStudyGroupId() != null) {
+            StudyGroup newGroup = studyGroupRepository.findById(request.getStudyGroupId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Guruh topilmadi: #" + request.getStudyGroupId()));
+
+            StudyGroup currentGroup = student.getStudyGroup();
+            if (currentGroup == null || !currentGroup.getId().equals(newGroup.getId())) {
+                groupMembershipRepository.findByStudentIdAndStatus(student.getId(), "ACTIVE").ifPresent(m -> {
+                    m.setStatus("TRANSFERRED");
+                    m.setLeftAt(LocalDateTime.now());
+                    m.setTransferReason("O'quvchi profilini tahrirlash orqali ko'chirildi");
+                    groupMembershipRepository.save(m);
+                });
+
+                groupMembershipRepository.save(GroupMembership.builder()
+                        .student(student)
+                        .group(newGroup)
+                        .status("ACTIVE")
+                        .enrolledAt(LocalDateTime.now())
+                        .previousGroup(currentGroup)
+                        .transferReason("Profil tahrirlash orqali guruh yangilandi")
+                        .build());
+
+                student.setStudyGroup(newGroup);
+                if (newGroup.getMentor() != null && request.getMentorId() == null) {
+                    student.setMentor(newGroup.getMentor());
+                }
+                if (newGroup.getBranch() != null && request.getBranchId() == null) {
+                    student.setBranch(newGroup.getBranch());
+                    student.setBranchLocation(newGroup.getBranch().getName());
+                }
+            }
+        }
+
+        // Status update
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            applyStatus(student, request.getStatus());
+        }
+
+        Student saved = studentRepository.save(student);
+
+        // Sync linked user
+        User user = saved.getUser();
+        if (user == null && saved.getStudentIdNumber() != null) {
+            user = userRepository.findByUsernameIgnoreCase(saved.getStudentIdNumber()).orElse(null);
+        }
+        if (user != null) {
+            user.setFullName(saved.getFullName());
+            if (saved.getPhone() != null) user.setPhone(saved.getPhone());
+            userRepository.save(user);
+        }
+
+        auditService.logAction(
+                "STUDENT_UPDATED",
+                "Student",
+                String.valueOf(saved.getId()),
+                actor != null ? actor : "admin",
+                "O'quvchi ma'lumotlari yangilandi: " + saved.getFullName()
+        );
+
+        return toDetailDto(saved);
+    }
+
+    @Transactional
+    public StudentDetailDto updateStudentStatus(Long id, String status, String reason, String actor) {
+        Student student = studentRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("O'quvchi topilmadi: #" + id));
+
+        applyStatus(student, status);
+        Student saved = studentRepository.save(student);
+
+        auditService.logAction(
+                "STUDENT_STATUS_UPDATED",
+                "Student",
+                String.valueOf(saved.getId()),
+                actor != null ? actor : "admin",
+                "O'quvchi holati yangilandi (" + status + ")" + (reason != null ? ". Sabab: " + reason : "")
+        );
+
+        return toDetailDto(saved);
+    }
+
+    @Transactional
+    public StudentDetailDto archiveStudent(Long id, String reason, String actor) {
+        return updateStudentStatus(id, "ARCHIVED", reason != null ? reason : "Arxivlandi", actor);
+    }
+
+    private void applyStatus(Student student, String rawStatus) {
+        String upper = rawStatus.trim().toUpperCase();
+        if (upper.equals("ARCHIVED") || upper.equals("ARXIVLANGAN")) {
+            student.setStatus("ARCHIVED");
+            updateLinkedUserEnabled(student, false);
+            groupMembershipRepository.findByStudentIdAndStatus(student.getId(), "ACTIVE").ifPresent(m -> {
+                m.setStatus("ARCHIVED");
+                m.setLeftAt(LocalDateTime.now());
+                m.setTransferReason("O'quvchi arxivlandi");
+                groupMembershipRepository.save(m);
+            });
+        } else if (upper.equals("INACTIVE") || upper.equals("NOFAOL")) {
+            student.setStatus("INACTIVE");
+            updateLinkedUserEnabled(student, false);
+        } else {
+            student.setStatus("ACTIVE");
+            updateLinkedUserEnabled(student, true);
+        }
+    }
+
+    private void updateLinkedUserEnabled(Student student, boolean enabled) {
+        User user = student.getUser();
+        if (user == null && student.getStudentIdNumber() != null) {
+            user = userRepository.findByUsernameIgnoreCase(student.getStudentIdNumber()).orElse(null);
+        }
+        if (user != null) {
+            user.setEnabled(enabled);
+            userRepository.save(user);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<GroupMembershipDto> getStudentHistory(Long studentId) {
+        return groupMembershipRepository.findByStudentIdOrderByEnrolledAtDesc(studentId).stream()
+                .map(this::toMembershipDto)
+                .toList();
+    }
+
+    public StudentDetailDto toDetailDto(Student student) {
+        if (student == null) return null;
+
+        User user = student.getUser();
+        if (user == null && student.getStudentIdNumber() != null) {
+            user = userRepository.findByUsernameIgnoreCase(student.getStudentIdNumber()).orElse(null);
+        }
+
+        Long branchId = student.getBranch() != null ? student.getBranch().getId() : null;
+        String branchName = student.getBranch() != null ? student.getBranch().getName() : student.getBranchLocation();
+
+        Long groupId = student.getStudyGroup() != null ? student.getStudyGroup().getId() : null;
+        String groupCode = student.getStudyGroup() != null ? student.getStudyGroup().getGroupCode() : null;
+
+        Long mentorId = student.getMentor() != null ? student.getMentor().getId() : null;
+        String mentorName = student.getMentor() != null ? student.getMentor().getFullName() : null;
+
+        return StudentDetailDto.builder()
+                .id(student.getId())
+                .fullName(student.getFullName())
+                .studentIdNumber(student.getStudentIdNumber())
+                .username(user != null ? user.getUsername() : student.getStudentIdNumber())
+                .pinfl(student.getPinfl())
+                .phone(student.getPhone())
+                .gradeLevel(student.getGradeLevel())
+                .direction(student.getDirection())
+                .district(student.getDistrict())
+                .branchLocation(student.getBranchLocation())
+                .branchId(branchId)
+                .branchName(branchName)
+                .studyGroupId(groupId)
+                .groupCode(groupCode)
+                .mentorId(mentorId)
+                .mentorName(mentorName)
+                .status(student.getStatus())
+                .accountEnabled(user != null && user.isEnabled())
+                .createdAt(student.getCreatedAt())
+                .updatedAt(student.getUpdatedAt())
+                .build();
+    }
+
+    public GroupMembershipDto toMembershipDto(GroupMembership gm) {
+        return GroupMembershipDto.builder()
+                .id(gm.getId())
+                .studentId(gm.getStudent() != null ? gm.getStudent().getId() : null)
+                .studentName(gm.getStudent() != null ? gm.getStudent().getFullName() : null)
+                .studentGrade(gm.getStudent() != null ? gm.getStudent().getGradeLevel() : null)
+                .groupId(gm.getGroup() != null ? gm.getGroup().getId() : null)
+                .groupCode(gm.getGroup() != null ? gm.getGroup().getGroupCode() : null)
+                .status(gm.getStatus())
+                .enrolledAt(gm.getEnrolledAt())
+                .leftAt(gm.getLeftAt())
+                .transferReason(gm.getTransferReason())
+                .previousGroupId(gm.getPreviousGroup() != null ? gm.getPreviousGroup().getId() : null)
+                .previousGroupCode(gm.getPreviousGroup() != null ? gm.getPreviousGroup().getGroupCode() : null)
+                .build();
+    }
+
     @Transactional
     public void deleteStudent(Long id) {
         studentRepository.findById(id).ifPresent(student -> {
+            long membershipsCount = groupMembershipRepository.findByStudentId(id).size();
+            if (membershipsCount > 0) {
+                student.setStatus("ARCHIVED");
+                updateLinkedUserEnabled(student, false);
+                studentRepository.save(student);
+                auditService.logAction("STUDENT_ARCHIVED", "Student", String.valueOf(id), "admin",
+                        "O'quvchi o'chirish so'rovi xavfsiz arxivlashga o'tkazildi: " + student.getFullName());
+                return;
+            }
+
             if (student.getStudentIdNumber() != null) {
                 userRepository.findByUsername(student.getStudentIdNumber()).ifPresent(userRepository::delete);
             }
+            studentRepository.deleteById(id);
         });
-        studentRepository.deleteById(id);
     }
 }

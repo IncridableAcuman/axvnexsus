@@ -8,14 +8,21 @@ import org.springframework.transaction.annotation.Transactional;
 import uz.axm.nexus.access.domain.Role;
 import uz.axm.nexus.access.infrastructure.RoleRepository;
 import uz.axm.nexus.audit.application.AuditService;
+import uz.axm.nexus.branches.domain.Branch;
+import uz.axm.nexus.branches.infrastructure.BranchRepository;
+import uz.axm.nexus.classrooms.domain.StudyGroup;
+import uz.axm.nexus.classrooms.infrastructure.StudyGroupRepository;
 import uz.axm.nexus.identity.application.HemisIdGeneratorService;
 import uz.axm.nexus.identity.application.ResetPasswordResultDto;
 import uz.axm.nexus.mentors.domain.Mentor;
 import uz.axm.nexus.mentors.domain.MentorProfile;
 import uz.axm.nexus.mentors.infrastructure.MentorProfileRepository;
 import uz.axm.nexus.mentors.infrastructure.MentorRepository;
+import uz.axm.nexus.scheduling.infrastructure.ScheduleRepository;
 import uz.axm.nexus.shared.application.BusinessException;
+import uz.axm.nexus.shared.application.ResourceNotFoundException;
 import uz.axm.nexus.users.domain.User;
+import uz.axm.nexus.users.infrastructure.StudentRepository;
 import uz.axm.nexus.users.infrastructure.UserRepository;
 
 import java.time.LocalDateTime;
@@ -35,6 +42,10 @@ public class MentorService {
     private final PasswordEncoder passwordEncoder;
     private final HemisIdGeneratorService hemisIdGeneratorService;
     private final MentorProfileRepository mentorProfileRepository;
+    private final StudyGroupRepository studyGroupRepository;
+    private final StudentRepository studentRepository;
+    private final BranchRepository branchRepository;
+    private final ScheduleRepository scheduleRepository;
     private final AuditService auditService;
 
     public List<Mentor> getAllMentors() {
@@ -48,7 +59,7 @@ public class MentorService {
     public Optional<Mentor> findByName(String name) {
         if (name == null || name.isBlank()) return Optional.empty();
         return mentorRepository.findByFullNameIgnoreCase(name.trim())
-                .or(() -> mentorRepository.findByFullNameContainingIgnoreCase(name.trim()));
+                .or(() -> mentorRepository.findFirstByFullNameContainingIgnoreCase(name.trim()));
     }
 
     @Transactional
@@ -237,6 +248,209 @@ public class MentorService {
                 .identifier(identifier)
                 .fullName(mentor.getFullName())
                 .newPassword(newPassword)
+                .build();
+    }
+
+    public List<Mentor> searchMentors(String search, Long branchId, String status) {
+        List<Mentor> mentors = mentorRepository.findAll();
+
+        if (branchId != null) {
+            mentors = mentors.stream()
+                    .filter(m -> m.getBranch() != null && branchId.equals(m.getBranch().getId()))
+                    .toList();
+        }
+        if (status != null && !status.isBlank() && !status.equalsIgnoreCase("all")) {
+            mentors = mentors.stream()
+                    .filter(m -> m.getStatus() != null && m.getStatus().equalsIgnoreCase(status))
+                    .toList();
+        }
+        if (search != null && !search.isBlank()) {
+            String q = search.trim().toLowerCase();
+            mentors = mentors.stream()
+                    .filter(m -> (m.getFullName() != null && m.getFullName().toLowerCase().contains(q)) ||
+                                 (m.getRole() != null && m.getRole().toLowerCase().contains(q)) ||
+                                 (m.getEmail() != null && m.getEmail().toLowerCase().contains(q)) ||
+                                 (m.getPhone() != null && m.getPhone().contains(q)))
+                    .toList();
+        }
+
+        return mentors;
+    }
+
+    public MentorDetailDto getMentorDetailById(Long id) {
+        Mentor mentor = mentorRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Mentor topilmadi: #" + id));
+        return toDetailDto(mentor);
+    }
+
+    @Transactional
+    public MentorDetailDto updateMentor(Long id, UpdateMentorRequest request, String actor) {
+        Mentor mentor = mentorRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Mentor topilmadi: #" + id));
+
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            mentor.setFullName(request.getFullName().trim());
+        }
+        if (request.getRole() != null && !request.getRole().isBlank()) {
+            mentor.setRole(request.getRole().trim());
+        }
+        if (request.getPhone() != null) {
+            mentor.setPhone(request.getPhone().trim());
+        }
+        if (request.getEmail() != null) {
+            mentor.setEmail(request.getEmail().trim().toLowerCase());
+        }
+        if (request.getBio() != null) {
+            mentor.setBio(request.getBio());
+        }
+
+        if (request.getBranchId() != null) {
+            Branch branch = branchRepository.findById(request.getBranchId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Filial topilmadi: #" + request.getBranchId()));
+            mentor.setBranch(branch);
+            mentor.setBranchLocation(branch.getName());
+        } else if (request.getBranchLocation() != null && !request.getBranchLocation().isBlank()) {
+            mentor.setBranchLocation(request.getBranchLocation().trim());
+        }
+
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            applyStatus(mentor, request.getStatus());
+        }
+
+        Mentor saved = mentorRepository.save(mentor);
+
+        // Sync linked user
+        User user = saved.getUser();
+        if (user != null) {
+            user.setFullName(saved.getFullName());
+            if (saved.getPhone() != null) user.setPhone(saved.getPhone());
+            if (saved.getEmail() != null) user.setEmail(saved.getEmail());
+            userRepository.save(user);
+        }
+
+        // Sync profile if present
+        mentorProfileRepository.findByMentorId(saved.getId()).ifPresent(p -> {
+            p.setDisplayName(saved.getFullName());
+            p.setHeadline(saved.getRole() + " | " + saved.getBranchLocation());
+            if (saved.getBio() != null) p.setBio(saved.getBio());
+            if (saved.getPhone() != null) p.setPhone(saved.getPhone());
+            if (saved.getEmail() != null) p.setEmail(saved.getEmail());
+            p.setBranchLocation(saved.getBranchLocation());
+            mentorProfileRepository.save(p);
+        });
+
+        auditService.logAction(
+                "MENTOR_UPDATED",
+                "Mentor",
+                String.valueOf(saved.getId()),
+                actor != null ? actor : "admin",
+                "Mentor ma'lumotlari yangilandi: " + saved.getFullName()
+        );
+
+        return toDetailDto(saved);
+    }
+
+    @Transactional
+    public MentorDetailDto updateMentorStatus(Long id, String status, String reason, String actor) {
+        Mentor mentor = mentorRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Mentor topilmadi: #" + id));
+
+        applyStatus(mentor, status);
+        Mentor saved = mentorRepository.save(mentor);
+
+        auditService.logAction(
+                "MENTOR_STATUS_UPDATED",
+                "Mentor",
+                String.valueOf(saved.getId()),
+                actor != null ? actor : "admin",
+                "Mentor holati yangilandi (" + status + ")" + (reason != null ? ". Sabab: " + reason : "")
+        );
+
+        return toDetailDto(saved);
+    }
+
+    @Transactional
+    public MentorDetailDto archiveMentor(Long id, String reason, String actor) {
+        return updateMentorStatus(id, "ARCHIVED", reason != null ? reason : "Arxivlandi", actor);
+    }
+
+    private void applyStatus(Mentor mentor, String rawStatus) {
+        String upper = rawStatus.trim().toUpperCase();
+        if (upper.equals("ARCHIVED") || upper.equals("ARXIVLANGAN")) {
+            mentor.setStatus("ARCHIVED");
+            updateLinkedUserEnabled(mentor, false);
+        } else if (upper.equals("INACTIVE") || upper.equals("NOFAOL")) {
+            mentor.setStatus("INACTIVE");
+            updateLinkedUserEnabled(mentor, false);
+        } else {
+            mentor.setStatus("ACTIVE");
+            updateLinkedUserEnabled(mentor, true);
+        }
+    }
+
+    private void updateLinkedUserEnabled(Mentor mentor, boolean enabled) {
+        User user = mentor.getUser();
+        if (user == null && mentor.getEmail() != null) {
+            user = userRepository.findByEmailIgnoreCase(mentor.getEmail()).orElse(null);
+        }
+        if (user != null) {
+            user.setEnabled(enabled);
+            userRepository.save(user);
+        }
+    }
+
+    public MentorDetailDto toDetailDto(Mentor mentor) {
+        if (mentor == null) return null;
+
+        User user = mentor.getUser();
+        if (user == null && mentor.getEmail() != null) {
+            user = userRepository.findByEmailIgnoreCase(mentor.getEmail()).orElse(null);
+        }
+
+        Long branchId = mentor.getBranch() != null ? mentor.getBranch().getId() : null;
+        String branchName = mentor.getBranch() != null ? mentor.getBranch().getName() : mentor.getBranchLocation();
+
+        List<StudyGroup> groups = studyGroupRepository.findByMentorId(mentor.getId());
+        List<MentorDetailDto.AssignedGroupDto> groupDtos = groups.stream()
+                .map(g -> MentorDetailDto.AssignedGroupDto.builder()
+                        .id(g.getId())
+                        .groupCode(g.getGroupCode())
+                        .subject(g.getSubject())
+                        .gradeLevel(g.getGradeLevel())
+                        .studentCount(g.getStudentCount())
+                        .scheduleDays(g.getScheduleDays())
+                        .scheduleTime(g.getScheduleTime())
+                        .status(g.getStatus())
+                        .build())
+                .toList();
+
+        long activeGroups = groups.stream().filter(g -> "ACTIVE".equalsIgnoreCase(g.getStatus())).count();
+        long activeStudents = studentRepository.findByMentorId(mentor.getId()).stream()
+                .filter(s -> !"ARCHIVED".equalsIgnoreCase(s.getStatus()))
+                .count();
+
+        // Calculate approximate weekly hours (each active recurring schedule slot is ~1.5h)
+        int weeklyHours = (int) (activeGroups * 4.5); // typically 3 sessions/week * 1.5h = 4.5h per cohort
+
+        return MentorDetailDto.builder()
+                .id(mentor.getId())
+                .fullName(mentor.getFullName())
+                .role(mentor.getRole())
+                .phone(mentor.getPhone())
+                .email(mentor.getEmail())
+                .branchLocation(mentor.getBranchLocation())
+                .branchId(branchId)
+                .branchName(branchName)
+                .bio(mentor.getBio())
+                .status(mentor.getStatus() != null ? mentor.getStatus() : "ACTIVE")
+                .username(user != null ? user.getUsername() : null)
+                .accountEnabled(user != null && user.isEnabled())
+                .activeGroupsCount((int) activeGroups)
+                .activeStudentsCount((int) activeStudents)
+                .weeklyHours(weeklyHours)
+                .assignedGroups(groupDtos)
+                .createdAt(mentor.getCreatedAt())
+                .updatedAt(mentor.getUpdatedAt())
                 .build();
     }
 }

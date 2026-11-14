@@ -273,6 +273,7 @@ export const App: React.FC<{ initialTab?: string }> = ({ initialTab = 'dashboard
           isOpen={isManualModalOpen}
           onClose={() => setIsManualModalOpen(false)}
           mentors={mentors}
+          groups={groups}
           onSuccess={() => {
             fetchAllData();
             setActiveTab('timetable');
