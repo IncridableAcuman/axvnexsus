@@ -533,6 +533,20 @@ export interface PageResponse<T> {
   last: boolean;
 }
 
+export interface SpringPageDto<T> {
+  content: T[];
+  pageable?: any;
+  totalElements: number;
+  totalPages: number;
+  last: boolean;
+  size: number;
+  number: number;
+  sort?: any;
+  numberOfElements?: number;
+  first?: boolean;
+  empty?: boolean;
+}
+
 // Module 05: Education Structure & Groups
 export interface AcademicPeriodDto {
   id: number;
@@ -861,6 +875,16 @@ export interface StudentAssessmentAttemptDto {
   percentage: number;
   status: 'IN_PROGRESS' | 'SUBMITTED' | 'EVALUATED' | 'EXPIRED' | string;
   mentorFeedback?: string;
+  xpEarned?: number;
+  xpSources?: string[];
+  streakStatus?: StreakCheckInResultDto;
+  newAchievements?: string[];
+  levelProgression?: {
+    level: number;
+    title: string;
+    xpNeededForNextLevel: number;
+    progressPercent: number;
+  };
 }
 
 export interface StudentAnswerDto {
@@ -944,6 +968,8 @@ export interface AchievementDto {
   icon: string;
   badgeColor: string;
   category: string;
+  rarity?: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+  displayOrder?: number;
   xpReward: number;
   criteriaType: string;
   criteriaThreshold: number;
@@ -964,6 +990,8 @@ export interface LeaderboardEntryDto {
   displayName: string;
   groupName: string;
   gradeLevel: string;
+  branchId?: number;
+  branchName?: string;
   totalPoints: number;
   highestSingleAward: number;
   earliestAchievedAt?: string;
@@ -972,6 +1000,8 @@ export interface LeaderboardEntryDto {
   longestStreak?: number;
   level?: number;
   levelName?: string;
+  tenTierLevel?: number;
+  tenTierTitle?: string;
 }
 
 export interface GroupLeaderboardEntryDto {
@@ -988,6 +1018,7 @@ export interface StudentStreakDto {
   longestStreak: number;
   checkedInToday: boolean;
   lastActivityDate?: string;
+  streakStartDate?: string;
   streakFreezeCount: number;
   totalActiveDays: number;
   nextMilestoneDays: number;
@@ -1002,7 +1033,52 @@ export interface StreakCheckInResultDto {
   bonusXpEarned: number;
   message: string;
   lastActivityDate: string;
+  streakStartDate?: string;
   streakFreezeAvailable: boolean;
+}
+
+export interface StreakFreezeResultDto {
+  studentId: number;
+  success: boolean;
+  remainingFreezes: number;
+  usedDate: string;
+  message: string;
+}
+
+export interface StreakFreezeHistoryDto {
+  id: number;
+  studentId: number;
+  usedDate: string;
+  actionType: string;
+  reason: string;
+  performedByUserId?: number;
+  createdAt: string;
+}
+
+export interface StudentXpSummaryDto {
+  studentId: number;
+  totalXp: number;
+  weeklyXp: number;
+  monthlyXp: number;
+  overallRank?: number;
+  weeklyRank?: number;
+  monthlyRank?: number;
+  currentLevel: number;
+  currentLevelTitle: string;
+  tenTierLevel: number;
+  tenTierTitle: string;
+  xpToNextLevel: number;
+  sourceBreakdown: Record<string, number>;
+}
+
+export interface GamificationConfigurationDto {
+  id: number;
+  configKey: string;
+  configValue: string;
+  description?: string;
+  category: string;
+  updatedByUserId?: number;
+  updatedAt: string;
 }
 
 export interface LevelInfoDto {
@@ -1035,15 +1111,23 @@ export interface StudentGamificationProfileDto {
   displayName: string;
   totalPoints: number;
   rank: number;
+  weeklyRank?: number;
+  monthlyRank?: number;
   currentStreak?: number;
   longestStreak?: number;
   checkedInToday?: boolean;
   totalActiveDays?: number;
+  streakStartDate?: string;
   level?: number;
   levelName?: string;
   currentLevelMinXp?: number;
   nextLevelXp?: number;
   levelProgressPercent?: number;
+  tenTierLevel?: number;
+  tenTierTitle?: string;
+  tenTierMinXp?: number;
+  tenTierMaxXp?: number;
+  tenTierProgressPercent?: number;
   streakDetails?: StudentStreakDto;
   recentTransactions: PointTransactionDto[];
   unlockedAchievements: StudentAchievementDto[];

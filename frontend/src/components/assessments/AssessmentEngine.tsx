@@ -31,6 +31,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
+import { invalidateGamificationQueries } from '@/features/gamification/useGamification';
 import {
   Dialog,
   DialogContent,
@@ -414,10 +415,12 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
     setShowReview(true);
     setIsTestTaking(false);
     saveAttemptResult(quizId, resultRecord);
+    invalidateGamificationQueries();
 
+    const actualXp = backendResult?.xpEarned ?? (finalPct >= 90 ? 60 : (finalPct >= 60 ? 30 : 10));
     toast.success(
       'Test topshirildi va baholandi!',
-      `Natijangiz: ${finalScore}/${max} (${finalPct}%). To‘g‘ri javoblar: ${correctCount}/${testQuestions.length}. +${finalScore} XP berildi! 🔥`
+      `Natijangiz: ${finalScore}/${max} (${finalPct}%). To‘g‘ri javoblar: ${correctCount}/${testQuestions.length}. +${actualXp} XP hisobingizga qo‘shildi! 🔥`
     );
   };
 
@@ -1508,23 +1511,34 @@ export const AssessmentEngine: React.FC<AssessmentEngineProps> = ({
                 <div className="p-3 rounded-2xl bg-amber-500/10 border-0">
                   <div className="flex items-center gap-1.5 text-xs font-black text-amber-600 dark:text-amber-400">
                     <Zap className="w-3.5 h-3.5 fill-current" />
-                    <span>+{testResult.totalScore} XP berildi</span>
+                    <span>+{testResult.xpEarned ?? 10} XP berildi</span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground block">Platforma reytingingiz ko‘tarildi</span>
+                  <span className="text-[10px] text-muted-foreground block">
+                    {testResult.xpSources ? testResult.xpSources.join(' • ') : 'Platforma reytingingiz ko‘tarildi'}
+                  </span>
                 </div>
                 <div className="p-3 rounded-2xl bg-orange-500/10 border-0">
                   <div className="flex items-center gap-1.5 text-xs font-black text-orange-600 dark:text-orange-400">
                     <Flame className="w-3.5 h-3.5 fill-current" />
-                    <span>Kunlik Streak 🔥</span>
+                    <span>{testResult.streakStatus?.currentStreak ? `${testResult.streakStatus.currentStreak}-kunlik Streak 🔥` : 'Kunlik Streak 🔥'}</span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground block">Muntazam intizom saqlandi</span>
+                  <span className="text-[10px] text-muted-foreground block">
+                    {testResult.streakStatus?.message || 'Muntazam intizom saqlandi'}
+                  </span>
                 </div>
               </div>
+
+              {testResult.newAchievements && testResult.newAchievements.length > 0 && (
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-900 dark:text-purple-200 text-xs font-extrabold flex items-center justify-center gap-2">
+                  <Award className="w-4 h-4 text-purple-500" />
+                  <span>🎖️ Yangi Nishon ochildi: {testResult.newAchievements.join(', ')}!</span>
+                </div>
+              )}
 
               {testResult.percentage !== undefined && testResult.percentage >= 100 && (
                 <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 text-amber-800 dark:text-amber-200 text-xs font-extrabold flex items-center justify-center gap-2">
                   <Trophy className="w-4 h-4 text-amber-500" />
-                  <span>👑 Mukammal 100% natija! +50 XP qo‘shimcha bonus</span>
+                  <span>👑 Mukammal 100% natija! Qo‘shimcha bonus taqdim etildi</span>
                 </div>
               )}
 

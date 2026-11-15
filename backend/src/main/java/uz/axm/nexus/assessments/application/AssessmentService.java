@@ -289,42 +289,108 @@ public class AssessmentService {
     private void applyAssessmentGamificationRewards(StudentAssessmentAttempt attempt, Assessment assessment) {
         if (gradingService == null || attempt.getStudentId() == null) return;
         try {
-            int score = attempt.getTotalScore() != null ? attempt.getTotalScore() : 0;
-            String idempKey = "test_attempt_" + attempt.getId();
-            gradingService.awardPoints(
-                    attempt.getStudentId(),
-                    score,
-                    "ASSESSMENT",
-                    String.valueOf(attempt.getId()),
-                    "StudentAssessmentAttempt",
-                    idempKey,
-                    "Test natijasi (" + assessment.getTitle() + "): " + score + " ball (" + attempt.getPercentage() + "%)",
-                    attempt.getGradedByMentorId()
-            );
+            Long studentId = attempt.getStudentId();
+            Long mentorId = attempt.getGradedByMentorId();
+            double percentage = attempt.getPercentage() != null ? attempt.getPercentage() : 0.0;
+            int passingThreshold = assessment.getPassingScore() != null ? assessment.getPassingScore() : 60;
 
-            if (attempt.getPercentage() != null && attempt.getPercentage() >= 100.0) {
+            int earnedXp = 0;
+            List<String> sources = new ArrayList<>();
+            List<String> newlyUnlocked = new ArrayList<>();
+
+            // 1. Complete a quiz (Configurable, default 10 XP)
+            uz.axm.nexus.grading.domain.PointTransaction txComplete = gradingService.awardQuizCompletion(studentId, attempt.getId(), assessment.getTitle(), mentorId);
+            if (txComplete != null && txComplete.getAmount() != null) {
+                earnedXp += txComplete.getAmount();
+                sources.add("QUIZ_COMPLETED");
+            }
+
+            // 2. Pass a quiz (Configurable, default 20 XP) - protected per assessment per student against farming retakes
+            boolean passed = percentage >= passingThreshold || (attempt.getTotalScore() != null && attempt.getTotalScore() >= passingThreshold);
+            if (passed) {
+                uz.axm.nexus.grading.domain.PointTransaction txPass = gradingService.awardQuizPassing(studentId, assessment.getId(), attempt.getId(), assessment.getTitle(), percentage, mentorId);
+                if (txPass != null && txPass.getAmount() != null) {
+                    earnedXp += txPass.getAmount();
+                    sources.add("QUIZ_PASSED");
+                }
+            }
+
+            // 3. High score reward >=90% (Configurable, default 30 XP)
+            if (percentage >= 90.0) {
+                uz.axm.nexus.grading.domain.PointTransaction txHigh = gradingService.awardQuizHighScore(studentId, assessment.getId(), attempt.getId(), assessment.getTitle(), percentage, mentorId);
+                if (txHigh != null && txHigh.getAmount() != null) {
+                    earnedXp += txHigh.getAmount();
+                    sources.add("QUIZ_HIGH_SCORE");
+                }
+            }
+
+            // 4. Perfect Score (100%) achievement & bonus
+            if (percentage >= 100.0) {
                 String bonusKey = "perfect_test_" + attempt.getId();
-                gradingService.awardPoints(
-                        attempt.getStudentId(),
+                uz.axm.nexus.grading.domain.PointTransaction txPerf = gradingService.awardPoints(
+                        studentId,
                         50,
                         "ACHIEVEMENT_UNLOCKED",
                         String.valueOf(attempt.getId()),
                         "StudentAssessmentAttempt",
                         bonusKey,
                         "Mukammal 100% natija bonusi! (" + assessment.getTitle() + ")",
-                        attempt.getGradedByMentorId()
+                        mentorId
                 );
-                gradingService.unlockAchievementIfEligible(attempt.getStudentId(), "FIRST_PERFECT_TEST");
+                if (txPerf != null && txPerf.getAmount() != null) {
+                    earnedXp += txPerf.getAmount();
+                }
+                if (gradingService.unlockAchievementIfEligible(studentId, "FIRST_PERFECT_TEST")) {
+                    newlyUnlocked.add("FIRST_PERFECT_TEST");
+                }
             }
 
-            gradingService.recordDailyActivity(attempt.getStudentId(), "ASSESSMENT_COMPLETION");
+            // 5. Register Daily Streak Activity
+            GradingAndGamificationService.StreakCheckInResult streakRes = gradingService.recordDailyActivity(studentId, "QUIZ_COMPLETED");
 
-            long passedCount = attemptRepository.findByStudentId(attempt.getStudentId()).stream()
+            // 6. Unlock milestone achievements
+            if (gradingService.unlockAchievementIfEligible(studentId, "FIRST_QUIZ_COMPLETED")) {
+                newlyUnlocked.add("FIRST_QUIZ_COMPLETED");
+            }
+
+            List<StudentAssessmentAttempt> studentAttempts = attemptRepository.findByStudentId(studentId);
+            long completedCount = studentAttempts.stream()
+                    .filter(a -> "EVALUATED".equals(a.getStatus()))
+                    .count();
+
+            if (completedCount >= 10 && gradingService.unlockAchievementIfEligible(studentId, "QUIZZES_10_COMPLETED")) {
+                newlyUnlocked.add("QUIZZES_10_COMPLETED");
+            }
+            if (completedCount >= 50 && gradingService.unlockAchievementIfEligible(studentId, "QUIZZES_50_COMPLETED")) {
+                newlyUnlocked.add("QUIZZES_50_COMPLETED");
+            }
+            if (completedCount >= 100 && gradingService.unlockAchievementIfEligible(studentId, "QUIZZES_100_COMPLETED")) {
+                newlyUnlocked.add("QUIZZES_100_COMPLETED");
+            }
+
+            long passedCount = studentAttempts.stream()
                     .filter(a -> "EVALUATED".equals(a.getStatus()) && a.getPercentage() != null && a.getPercentage() >= 60.0)
                     .count();
-            if (passedCount >= 3) {
-                gradingService.unlockAchievementIfEligible(attempt.getStudentId(), "TEST_EXPERT");
+            if (passedCount >= 3 && gradingService.unlockAchievementIfEligible(studentId, "TEST_EXPERT")) {
+                newlyUnlocked.add("TEST_EXPERT");
             }
+            if (passedCount >= 5 && gradingService.unlockAchievementIfEligible(studentId, "CONSISTENT_PERFORMER")) {
+                newlyUnlocked.add("CONSISTENT_PERFORMER");
+            }
+
+            long highCount = studentAttempts.stream()
+                    .filter(a -> "EVALUATED".equals(a.getStatus()) && a.getPercentage() != null && a.getPercentage() >= 90.0)
+                    .count();
+            if (highCount >= 5 && gradingService.unlockAchievementIfEligible(studentId, "QUIZ_MASTER")) {
+                newlyUnlocked.add("QUIZ_MASTER");
+            }
+
+            // Enrich attempt with gamification details
+            attempt.setXpEarned(earnedXp);
+            attempt.setXpSources(sources);
+            attempt.setStreakStatus(streakRes);
+            attempt.setNewAchievements(newlyUnlocked);
+            attempt.setLevelProgression(GradingAndGamificationService.calculateTenTierLevel(gradingService.getStudentTotalPoints(studentId)));
         } catch (Exception e) {
             log.error("Test topshirishda gamifikatsiya mukofotlarini hisoblashda xatolik: {}", e.getMessage(), e);
         }

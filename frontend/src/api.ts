@@ -812,8 +812,13 @@ export const gradingApi = {
   getStudentTransactions: (studentId: number) => {
     return api.get<import('./types').PointTransactionDto[]>(`/grading/points/student/${studentId}`);
   },
-  getLeaderboard: (period: 'WEEKLY' | 'MONTHLY' | 'ALL_TIME' = 'ALL_TIME') => {
-    return api.get<import('./types').LeaderboardEntryDto[]>('/grading/leaderboard', { params: { period } });
+  getLeaderboard: (
+    period: 'WEEKLY' | 'MONTHLY' | 'ALL_TIME' = 'ALL_TIME',
+    filters?: { branchId?: number; groupId?: number; page?: number; size?: number }
+  ) => {
+    return api.get<import('./types').LeaderboardEntryDto[]>('/grading/leaderboard', {
+      params: { period, ...filters },
+    });
   },
   getGroupLeaderboard: () => {
     return api.get<import('./types').GroupLeaderboardEntryDto[]>('/grading/leaderboard/groups');
@@ -838,6 +843,71 @@ export const gradingApi = {
   },
   getStudentStreak: (studentId: number) => {
     return api.get<import('./types').StudentStreakDto>(`/grading/streak/student/${studentId}`);
+  },
+  useStreakFreeze: (missedDate?: string) => {
+    return api.post<import('./types').StreakFreezeResultDto>('/grading/streak/freeze/use', null, {
+      params: missedDate ? { missedDate } : undefined,
+    });
+  },
+  adjustStreakFreeze: (data: { studentId: number; delta: number; reason: string }) => {
+    return api.post<import('./types').StreakFreezeResultDto>('/grading/streak/freeze/adjust', data);
+  },
+  getStreakFreezeHistory: (studentId?: number) => {
+    return api.get<import('./types').StreakFreezeHistoryDto[]>('/grading/streak/freeze/history', {
+      params: studentId ? { studentId } : undefined,
+    });
+  },
+  getMyTotalPoints: () => {
+    return api.get<{ studentId: number; totalXp: number }>('/grading/points/me/total');
+  },
+  getStudentTotalPoints: (studentId: number) => {
+    return api.get<{ studentId: number; totalXp: number }>(`/grading/points/student/${studentId}/total`);
+  },
+  getPointsByPeriod: (params: { studentId?: number; startDate: string; endDate: string }) => {
+    return api.get<{ studentId: number; startDate: string; endDate: string; earnedXp: number }>('/grading/points/period', {
+      params,
+    });
+  },
+  getAllAchievements: () => {
+    return api.get<import('./types').AchievementDto[]>('/grading/achievements');
+  },
+  getMyAchievements: () => {
+    return api.get<import('./types').StudentAchievementDto[]>('/grading/achievements/me');
+  },
+  getStudentAchievements: (studentId: number) => {
+    return api.get<import('./types').StudentAchievementDto[]>(`/grading/achievements/student/${studentId}`);
+  },
+  createAchievement: (data: Partial<import('./types').AchievementDto>) => {
+    return api.post<import('./types').AchievementDto>('/grading/achievements', data);
+  },
+  updateAchievement: (id: number, data: Partial<import('./types').AchievementDto>) => {
+    return api.put<import('./types').AchievementDto>(`/grading/achievements/${id}`, data);
+  },
+  toggleAchievement: (id: number) => {
+    return api.patch<import('./types').AchievementDto>(`/grading/achievements/${id}/toggle`);
+  },
+  getMyTransactionsPaged: (page: number = 0, size: number = 15, source?: string) => {
+    return api.get<import('./types').SpringPageDto<import('./types').PointTransactionDto>>('/grading/points/me/paged', {
+      params: { page, size, source },
+    });
+  },
+  getStudentTransactionsPaged: (studentId: number, page: number = 0, size: number = 15, source?: string) => {
+    return api.get<import('./types').SpringPageDto<import('./types').PointTransactionDto>>(`/grading/points/student/${studentId}/paged`, {
+      params: { page, size, source },
+    });
+  },
+  getXpSummary: (studentId?: number) => {
+    return api.get<import('./types').StudentXpSummaryDto>('/grading/points/summary', {
+      params: studentId ? { studentId } : undefined,
+    });
+  },
+  getConfigurations: (category?: string) => {
+    return api.get<import('./types').GamificationConfigurationDto[]>('/grading/config', {
+      params: category ? { category } : undefined,
+    });
+  },
+  updateConfiguration: (data: { configKey: string; configValue: string; description?: string }) => {
+    return api.put<import('./types').GamificationConfigurationDto>('/grading/config', data);
   },
   getGamificationMetrics: () => {
     return api.get<import('./types').GamificationMetricsDto>('/grading/metrics');

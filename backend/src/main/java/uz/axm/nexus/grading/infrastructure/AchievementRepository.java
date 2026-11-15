@@ -11,5 +11,8 @@ import java.util.Optional;
 public interface AchievementRepository extends JpaRepository<Achievement, Long> {
     Optional<Achievement> findByCode(String code);
     List<Achievement> findByIsActiveTrue();
+    List<Achievement> findByIsActiveTrueOrderByDisplayOrderAsc();
+    List<Achievement> findAllByOrderByDisplayOrderAscCreatedAtAsc();
     List<Achievement> findByCategory(String category);
+    List<Achievement> findByCategoryAndIsActiveTrueOrderByDisplayOrderAsc(String category);
 }

@@ -2,8 +2,10 @@ package uz.axm.nexus.lessons.application;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import uz.axm.nexus.grading.application.GradingAndGamificationService;
 import uz.axm.nexus.lessons.domain.Lesson;
 import uz.axm.nexus.lessons.domain.LessonRevision;
 import uz.axm.nexus.lessons.domain.StudentLessonProgress;
@@ -23,6 +25,9 @@ public class LessonService {
     private final LessonRepository lessonRepository;
     private final LessonRevisionRepository revisionRepository;
     private final StudentLessonProgressRepository progressRepository;
+
+    @Autowired(required = false)
+    private GradingAndGamificationService gradingService;
 
     private static final Set<String> VALID_STATUSES = Set.of(
             "DRAFT", "REVIEW", "PUBLISHED", "COMPLETED", "CANCELLED", "ARCHIVED"
@@ -247,7 +252,22 @@ public class LessonService {
             progress.setMentorFeedback(feedback);
         }
 
-        return progressRepository.save(progress);
+        StudentLessonProgress saved = progressRepository.save(progress);
+
+        // Gamification XP & Streak for Lesson Completion / Attendance (Config-driven, default 5 XP)
+        if (gradingService != null && ("COMPLETED".equalsIgnoreCase(saved.getStatus()) || "ATTENDED".equalsIgnoreCase(saved.getStatus()))) {
+            try {
+                Lesson lesson = lessonRepository.findById(lessonId).orElse(null);
+                String lessonTitle = (lesson != null) ? lesson.getTitle() : "Dars #" + lessonId;
+                gradingService.awardLessonCompletion(studentId, lessonId, lessonTitle, null);
+                gradingService.recordDailyActivity(studentId, "LESSON_COMPLETED");
+                gradingService.unlockAchievementIfEligible(studentId, "FIRST_LESSON_COMPLETED");
+            } catch (Exception e) {
+                log.error("Dars gamifikatsiyasini hisoblashda xatolik: {}", e.getMessage(), e);
+            }
+        }
+
+        return saved;
     }
 
     @Transactional

@@ -64,4 +64,19 @@ public class StudentAssessmentAttempt {
 
     @Column(name = "graded_at")
     private LocalDateTime gradedAt;
+
+    @Transient
+    private Integer xpEarned;
+
+    @Transient
+    private java.util.List<String> xpSources;
+
+    @Transient
+    private Object streakStatus;
+
+    @Transient
+    private java.util.List<String> newAchievements;
+
+    @Transient
+    private Object levelProgression;
 }

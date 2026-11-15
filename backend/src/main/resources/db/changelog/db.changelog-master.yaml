@@ -35,3 +35,7 @@ databaseChangeLog:
       file: db/changelog/changes/017-configurable-time-slots.sql
   - include:
       file: db/changelog/changes/018-module01-people-enhancements.sql
+  - include:
+      file: db/changelog/changes/019-gamification-engine-enhancements.sql
+  - include:
+      file: db/changelog/changes/020-gamification-integrity-and-audit.sql

@@ -52,4 +52,13 @@ public class AssignmentSubmission {
 
     @Column(name = "graded_at")
     private LocalDateTime gradedAt;
+
+    @Transient
+    private Integer xpEarned;
+
+    @Transient
+    private java.util.List<String> newAchievements;
+
+    @Transient
+    private Object streakStatus;
 }

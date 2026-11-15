@@ -100,6 +100,7 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
   const [awardSource, setAwardSource] = useState('MENTOR_BONUS');
   const [awardReason, setAwardReason] = useState('');
   const [awarding, setAwarding] = useState(false);
+  const [usingFreeze, setUsingFreeze] = useState(false);
 
   const loadGamificationData = async () => {
     try {
@@ -122,18 +123,18 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
 
       if (lbRes.status === 'fulfilled' && lbRes.value && lbRes.value.data && lbRes.value.data.length > 0) {
         setLeaderboard(lbRes.value.data);
-      } else if (!auth?.isStudent) {
+      } else if (!auth?.isStudent && !auth) {
         setLeaderboard(getDefaultSampleLeaderboard());
       } else {
-        setLeaderboard([]);
+        setLeaderboard(lbRes.status === 'fulfilled' && lbRes.value?.data ? lbRes.value.data : []);
       }
 
       if (grpRes.status === 'fulfilled' && grpRes.value && grpRes.value.data && grpRes.value.data.length > 0) {
         setGroupLeaderboard(grpRes.value.data);
-      } else if (!auth?.isStudent) {
+      } else if (!auth?.isStudent && !auth) {
         setGroupLeaderboard(getDefaultSampleGroupLeaderboard());
       } else {
-        setGroupLeaderboard([]);
+        setGroupLeaderboard(grpRes.status === 'fulfilled' && grpRes.value?.data ? grpRes.value.data : []);
       }
 
       if (profileRes.status === 'fulfilled' && profileRes.value && profileRes.value.data) {
@@ -158,9 +159,29 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
         setLeaderboard(getDefaultSampleLeaderboard());
         setGroupLeaderboard(getDefaultSampleGroupLeaderboard());
         setStudentStreak(getDefaultSampleStreak(activeStudentId || 1));
+      } else {
+        setLeaderboard([]);
+        setGroupLeaderboard([]);
+        setStudentStreak(null);
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUseFreeze = async () => {
+    try {
+      setUsingFreeze(true);
+      const res = await gradingApi.useStreakFreeze();
+      toast.success(
+        '❄️ Streak Freeze Qo‘llandi!',
+        res.data.message || 'Muzlatgich muvaffaqiyatli ishlatildi va streak saqlandi.'
+      );
+      await loadGamificationData();
+    } catch (err: any) {
+      toast.error('Xatolik', err.response?.data?.message || 'Muzlatgichni qo‘llashda xatolik yuz berdi.');
+    } finally {
+      setUsingFreeze(false);
     }
   };
 
@@ -440,11 +461,24 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
               <Progress value={streakPercent} className="h-2 rounded-full bg-muted" />
             </div>
 
-            <div className="flex items-center gap-2 text-muted-foreground shrink-0">
-              <Shield className="w-4 h-4 text-blue-500" />
-              <span>
-                <strong>{studentStreak?.streakFreezeCount ?? 1} ta Streak Freeze</strong> zaxirada
-              </span>
+            <div className="flex items-center gap-3 text-muted-foreground shrink-0">
+              <div className="flex items-center gap-1.5">
+                <Shield className="w-4 h-4 text-blue-500" />
+                <span>
+                  <strong>{studentStreak?.streakFreezeCount ?? 1} ta Streak Freeze</strong> zaxirada
+                </span>
+              </div>
+              {(studentStreak?.streakFreezeCount ?? 0) > 0 && (
+                <Button
+                  onClick={handleUseFreeze}
+                  disabled={usingFreeze}
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl border-blue-500/30 text-blue-600 dark:text-blue-400 text-[11px] h-7 px-2.5 font-bold hover:bg-blue-500/10 cursor-pointer"
+                >
+                  ❄️ {usingFreeze ? 'Qo‘llanmoqda...' : 'Freeze Qo‘llash'}
+                </Button>
+              )}
             </div>
           </div>
         </Card>
@@ -1004,6 +1038,78 @@ export const GamificationDashboard: React.FC<GamificationDashboardProps> = ({ st
           </div>
         </Card>
       </div>
+
+      {/* ========================================================
+          5b. XP TRANSACTION HISTORY (AUDIT LEDGER)
+      ======================================================== */}
+      {studentProfile?.recentTransactions && studentProfile.recentTransactions.length > 0 && (
+        <Card className="border-0 shadow-xl bg-card rounded-3xl p-6 space-y-4">
+          <div className="flex items-center justify-between pb-1">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                <Activity className="w-5 h-5" />
+              </div>
+              <div>
+                <CardTitle className="text-base sm:text-lg font-bold text-foreground">
+                  XP Tranzaksiyalar Tarixi (Audit Ledger)
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                  Barcha berilgan ballar, testlar va kunlik streak bonuslarining shaffof auditi
+                </CardDescription>
+              </div>
+            </div>
+            <Badge className="border-0 bg-muted/60 text-foreground font-semibold text-xs px-2.5 py-1 rounded-xl">
+              Oxirgi {studentProfile.recentTransactions.length} ta yozuv
+            </Badge>
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-0 hover:bg-transparent">
+                  <TableHead className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] text-muted-foreground rounded-l-2xl">
+                    Sana & Vaqt
+                  </TableHead>
+                  <TableHead className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] text-muted-foreground">
+                    Faoliyat / Manba
+                  </TableHead>
+                  <TableHead className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] text-muted-foreground">
+                    Sabab / Izoh
+                  </TableHead>
+                  <TableHead className="py-2.5 px-3 font-bold uppercase tracking-wider text-[11px] text-muted-foreground text-right rounded-r-2xl">
+                    XP Miqdori
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="[&_tr]:border-0 space-y-1">
+                {studentProfile.recentTransactions.map((tx) => (
+                  <TableRow
+                    key={tx.id}
+                    className="border-0 hover:bg-muted/40 dark:hover:bg-muted/20 transition-colors rounded-2xl"
+                  >
+                    <TableCell className="py-2.5 px-3 text-xs text-muted-foreground whitespace-nowrap">
+                      {tx.createdAt ? new Date(tx.createdAt).toLocaleString('uz-UZ', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                    </TableCell>
+                    <TableCell className="py-2.5 px-3">
+                      <Badge className="border-0 bg-muted/80 text-foreground font-bold text-[10px] px-2 py-0.5 rounded-lg shadow-none">
+                        {tx.pointSource}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="py-2.5 px-3 text-xs font-medium text-foreground max-w-md truncate">
+                      {tx.reason}
+                    </TableCell>
+                    <TableCell className="py-2.5 px-3 text-right font-black text-xs">
+                      <span className={tx.amount >= 0 ? 'text-emerald-500' : 'text-rose-500'}>
+                        {tx.amount > 0 ? `+${tx.amount}` : tx.amount} XP
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      )}
 
       {/* ========================================================
           6. METRICS & GAMIFICATION STANDARDS MODAL

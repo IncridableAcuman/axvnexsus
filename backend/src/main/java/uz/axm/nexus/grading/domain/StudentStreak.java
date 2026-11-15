@@ -32,6 +32,9 @@ public class StudentStreak {
     @Column(name = "last_activity_date")
     private LocalDate lastActivityDate;
 
+    @Column(name = "streak_start_date")
+    private LocalDate streakStartDate;
+
     @Column(name = "streak_freeze_count", nullable = false)
     @Builder.Default
     private Integer streakFreezeCount = 1;
