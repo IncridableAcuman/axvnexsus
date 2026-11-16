@@ -29,6 +29,9 @@ public class LessonSessionDto {
     private String status;
     private String cancellationReason;
     private String notes;
+    private Boolean isManuallyModified;
+    private Long timeSlotId;
+    private String shiftName;
     private boolean attendanceRecorded;
     private int presentCount;
     private int absentCount;

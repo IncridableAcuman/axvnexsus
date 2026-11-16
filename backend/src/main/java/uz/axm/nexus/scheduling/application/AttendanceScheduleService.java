@@ -174,12 +174,19 @@ public class AttendanceScheduleService {
                     .orElseThrow(() -> new ResourceNotFoundException("Dars mashg'uloti topilmadi: #" + id));
         }
 
+        Mentor mentor = session.getMentor();
+        if (request.getNewMentorId() != null) {
+            mentor = mentorRepository.findById(request.getNewMentorId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Mentor topilmadi: #" + request.getNewMentorId()));
+            session.setMentor(mentor);
+        }
+
         String room = request.getNewRoom() != null && !request.getNewRoom().isBlank()
                 ? request.getNewRoom().trim()
                 : session.getRoom();
 
         // Check conflicts excluding self
-        checkMentorConflict(session.getMentor().getId(), request.getNewDate(), request.getNewStartTime(), request.getNewEndTime(), session.getId());
+        checkMentorConflict(mentor.getId(), request.getNewDate(), request.getNewStartTime(), request.getNewEndTime(), session.getId());
         if (room != null && !room.isBlank()) {
             checkRoomConflict(room, request.getNewDate(), request.getNewStartTime(), request.getNewEndTime(), session.getId());
         }
@@ -189,6 +196,7 @@ public class AttendanceScheduleService {
         session.setEndTime(request.getNewEndTime().trim());
         session.setRoom(room);
         session.setStatus("RESCHEDULED");
+        session.setIsManuallyModified(true);
         if (request.getReason() != null) {
             session.setNotes((session.getNotes() != null ? session.getNotes() + " | " : "") + "Ko'chirildi: " + request.getReason());
         }
@@ -229,10 +237,36 @@ public class AttendanceScheduleService {
 
         session.setStatus("CANCELLED");
         session.setCancellationReason(request.getReason());
+        session.setIsManuallyModified(true);
 
         LessonSession saved = lessonSessionRepository.save(session);
         auditService.logAction("LESSON_CANCELLED", "LessonSession", String.valueOf(saved.getId()), actor,
                 "Dars bekor qilindi. Sabab: " + request.getReason());
+
+        return toDto(saved);
+    }
+
+    @Transactional
+    public LessonSessionDto restoreSession(Long id, String actor) {
+        LessonSession session = lessonSessionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Dars mashg'uloti topilmadi: #" + id));
+
+        if (!"CANCELLED".equalsIgnoreCase(session.getStatus())) {
+            throw new BusinessException("Faqat bekor qilingan darslarni qayta tiklash mumkin!");
+        }
+
+        // Check conflicts before restoring
+        checkMentorConflict(session.getMentor().getId(), session.getLessonDate(), session.getStartTime(), session.getEndTime(), session.getId());
+        if (session.getRoom() != null && !session.getRoom().isBlank()) {
+            checkRoomConflict(session.getRoom(), session.getLessonDate(), session.getStartTime(), session.getEndTime(), session.getId());
+        }
+
+        session.setStatus("SCHEDULED");
+        session.setCancellationReason(null);
+        LessonSession saved = lessonSessionRepository.save(session);
+
+        auditService.logAction("LESSON_RESTORED", "LessonSession", String.valueOf(saved.getId()), actor,
+                "Bekor qilingan dars qayta tiklandi: " + saved.getSubject() + " (" + saved.getLessonDate() + ")");
 
         return toDto(saved);
     }
@@ -514,6 +548,9 @@ public class AttendanceScheduleService {
                 .status(s.getStatus())
                 .cancellationReason(s.getCancellationReason())
                 .notes(s.getNotes())
+                .isManuallyModified(s.getIsManuallyModified())
+                .timeSlotId(s.getTimeSlot() != null ? s.getTimeSlot().getId() : null)
+                .shiftName(s.getTimeSlot() != null ? s.getTimeSlot().getName() : null)
                 .attendanceRecorded(!records.isEmpty())
                 .presentCount(present)
                 .absentCount(absent)

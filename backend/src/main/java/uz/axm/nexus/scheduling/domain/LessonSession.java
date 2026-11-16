@@ -49,6 +49,14 @@ public class LessonSession extends BaseEntity {
     @Column(nullable = false, length = 50)
     private String status = "SCHEDULED"; // "SCHEDULED", "COMPLETED", "CANCELLED", "RESCHEDULED"
 
+    @Builder.Default
+    @Column(name = "is_manually_modified", nullable = false)
+    private Boolean isManuallyModified = false;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "time_slot_id")
+    private TimeSlot timeSlot;
+
     @Column(columnDefinition = "TEXT")
     private String cancellationReason;
 

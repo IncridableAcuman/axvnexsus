@@ -109,6 +109,42 @@ export const scheduleApi = {
   delete: (id: number) => {
     return api.delete(`/schedules/${id}`);
   },
+
+  getRecurring: (params?: { branchId?: number; status?: string; gradeLevel?: string }) => {
+    return api.get<Schedule[]>('/schedules/recurring', { params });
+  },
+
+  getRecurringById: (id: number) => {
+    return api.get<Schedule>(`/schedules/recurring/${id}`);
+  },
+
+  createRecurring: (data: ManualScheduleRequest) => {
+    return api.post<Schedule>('/schedules/recurring', data);
+  },
+
+  updateRecurring: (id: number, data: ManualScheduleRequest) => {
+    return api.put<Schedule>(`/schedules/recurring/${id}`, data);
+  },
+
+  archive: (id: number, reason?: string) => {
+    return api.post<Schedule>(`/schedules/${id}/archive`, { reason });
+  },
+
+  generate: (id: number, startDate?: string, endDate?: string) => {
+    return api.post<{ success: boolean; message: string; count: number }>(`/schedules/${id}/generate`, null, {
+      params: { startDate, endDate },
+    });
+  },
+
+  regenerate: (id: number, updateScope?: string) => {
+    return api.post<{ success: boolean; message: string; count: number }>(`/schedules/${id}/regenerate`, null, {
+      params: { updateScope },
+    });
+  },
+
+  preview: (data: import('./types').SchedulePreviewRequest) => {
+    return api.post<import('./types').SchedulePreviewResponse>('/schedules/preview', data);
+  },
 };
 
 export const timeSlotApi = {
@@ -617,6 +653,14 @@ export const attendanceApi = {
 
   submitAttendance: (sessionId: number, records: import('./types').AttendanceItemDto[]) => {
     return api.post<{ success: boolean; message: string; data: import('./types').LessonSessionDto }>(`/lessons/${sessionId}/attendance`, { records });
+  },
+
+  restoreSession: (id: number) => {
+    return api.post<{ success: boolean; message: string; data: import('./types').LessonSessionDto }>(`/lessons/${id}/restore`);
+  },
+
+  patchSession: (id: number, data: Partial<import('./types').LessonSessionDto>) => {
+    return api.patch<{ success: boolean; message: string; data: import('./types').LessonSessionDto }>(`/lessons/${id}`, data);
   },
 };
 

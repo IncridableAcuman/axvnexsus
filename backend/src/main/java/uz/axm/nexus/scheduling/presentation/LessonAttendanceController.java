@@ -17,7 +17,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/lessons")
+@RequestMapping({"/api/lessons", "/api/calendar/sessions"})
 @RequiredArgsConstructor
 @Tag(name = "Scheduling & Attendance", description = "Dars mashg'ulotlari jadvali, to'qnashuvlarni oldini olish va davomat nazorati")
 public class LessonAttendanceController {
@@ -69,7 +69,7 @@ public class LessonAttendanceController {
     }
 
     @PostMapping("/{id}/reschedule")
-    @PreAuthorize("hasAuthority('lessons.update') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'MENTOR')")
+    @PreAuthorize("hasAuthority('lessons.update') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'COORDINATOR', 'REGIONAL_COORDINATOR', 'MENTOR')")
     @Operation(summary = "Dars vaqtini o'zgartirish (reschedule) va yangi to'qnashuvlarni tekshirish")
     public ResponseEntity<ApiResponse<LessonSessionDto>> rescheduleSession(
             @PathVariable Long id,
@@ -80,8 +80,20 @@ public class LessonAttendanceController {
         return ResponseEntity.ok(ApiResponse.ok("Dars vaqti muvaffaqiyatli o'zgartirildi", updated));
     }
 
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasAuthority('lessons.update') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'COORDINATOR', 'REGIONAL_COORDINATOR', 'MENTOR')")
+    @Operation(summary = "Dars parametrlarini tezkor o'zgartirish (reschedule)")
+    public ResponseEntity<ApiResponse<LessonSessionDto>> patchSession(
+            @PathVariable Long id,
+            @Valid @RequestBody RescheduleLessonRequest request
+    ) {
+        String actor = currentUserHelper.getCurrentUsername();
+        LessonSessionDto updated = attendanceScheduleService.rescheduleSession(id, request, actor);
+        return ResponseEntity.ok(ApiResponse.ok("Dars muvaffaqiyatli yangilandi", updated));
+    }
+
     @PostMapping("/{id}/cancel")
-    @PreAuthorize("hasAuthority('lessons.delete') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN')")
+    @PreAuthorize("hasAuthority('lessons.delete') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'COORDINATOR', 'REGIONAL_COORDINATOR')")
     @Operation(summary = "Darsni bekor qilish (sababi bilan)")
     public ResponseEntity<ApiResponse<LessonSessionDto>> cancelSession(
             @PathVariable Long id,
@@ -90,6 +102,15 @@ public class LessonAttendanceController {
         String actor = currentUserHelper.getCurrentUsername();
         LessonSessionDto cancelled = attendanceScheduleService.cancelSession(id, request, actor);
         return ResponseEntity.ok(ApiResponse.ok("Dars bekor qilindi", cancelled));
+    }
+
+    @PostMapping("/{id}/restore")
+    @PreAuthorize("hasAuthority('lessons.update') or hasAnyRole('SUPER_ADMIN', 'ADMIN', 'PROGRAM_ADMIN', 'COORDINATOR', 'REGIONAL_COORDINATOR')")
+    @Operation(summary = "Bekor qilingan dars mashg'ulotini qayta tiklash")
+    public ResponseEntity<ApiResponse<LessonSessionDto>> restoreSession(@PathVariable Long id) {
+        String actor = currentUserHelper.getCurrentUsername();
+        LessonSessionDto restored = attendanceScheduleService.restoreSession(id, actor);
+        return ResponseEntity.ok(ApiResponse.ok("Dars muvaffaqiyatli qayta tiklandi", restored));
     }
 
     @PostMapping("/{id}/attendance")

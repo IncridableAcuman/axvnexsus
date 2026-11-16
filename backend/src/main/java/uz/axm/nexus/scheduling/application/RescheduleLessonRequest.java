@@ -25,5 +25,7 @@ public class RescheduleLessonRequest {
 
     private String newRoom;
 
+    private Long newMentorId;
+
     private String reason;
 }

@@ -22,9 +22,9 @@ public class TimeSlotController {
 
     private final TimeSlotService timeSlotService;
 
-    @GetMapping("/api/time-slots")
+    @GetMapping({"/api/time-slots", "/api/shifts"})
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Faol dars vaqtlari ro'yxatini olish (Form va jadvallar uchun)")
+    @Operation(summary = "Faol dars vaqtlari / smenalar ro'yxatini olish (Form va jadvallar uchun)")
     public ResponseEntity<ApiResponse<List<TimeSlotDto>>> getActiveTimeSlots(
             @RequestParam(required = false) Long branchId
     ) {
@@ -32,7 +32,7 @@ public class TimeSlotController {
         return ResponseEntity.ok(ApiResponse.ok("Faol dars vaqtlari olindi", activeSlots));
     }
 
-    @GetMapping({"/api/admin/time-slots", "/api/v1/admin/time-slots"})
+    @GetMapping({"/api/admin/time-slots", "/api/v1/admin/time-slots", "/api/admin/shifts", "/api/shifts/all"})
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     @Operation(summary = "Barcha dars vaqtlarini (faol va nofaol) foydalanish statistikasi bilan olish")
     public ResponseEntity<ApiResponse<List<TimeSlotDto>>> getAllTimeSlots() {
@@ -40,7 +40,7 @@ public class TimeSlotController {
         return ResponseEntity.ok(ApiResponse.ok("Barcha dars vaqtlari olindi", allSlots));
     }
 
-    @GetMapping({"/api/admin/time-slots/{id}", "/api/v1/admin/time-slots/{id}"})
+    @GetMapping({"/api/admin/time-slots/{id}", "/api/v1/admin/time-slots/{id}", "/api/shifts/{id}", "/api/admin/shifts/{id}"})
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     @Operation(summary = "Bitta dars vaqtini olish")
     public ResponseEntity<ApiResponse<TimeSlotDto>> getTimeSlotById(@PathVariable Long id) {
@@ -48,7 +48,7 @@ public class TimeSlotController {
         return ResponseEntity.ok(ApiResponse.ok("Dars vaqti olindi", slot));
     }
 
-    @PostMapping({"/api/admin/time-slots", "/api/v1/admin/time-slots"})
+    @PostMapping({"/api/admin/time-slots", "/api/v1/admin/time-slots", "/api/shifts", "/api/admin/shifts"})
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     @Operation(summary = "Yangi dars vaqtini qo'shish")
     public ResponseEntity<ApiResponse<TimeSlotDto>> createTimeSlot(@Valid @RequestBody TimeSlotRequest request) {
@@ -57,7 +57,7 @@ public class TimeSlotController {
                 .body(ApiResponse.ok("Yangi dars vaqti muvaffaqiyatli qo'shildi", created));
     }
 
-    @PutMapping({"/api/admin/time-slots/{id}", "/api/v1/admin/time-slots/{id}"})
+    @PutMapping({"/api/admin/time-slots/{id}", "/api/v1/admin/time-slots/{id}", "/api/shifts/{id}", "/api/admin/shifts/{id}"})
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     @Operation(summary = "Mavjud dars vaqtini tahrirlash")
     public ResponseEntity<ApiResponse<TimeSlotDto>> updateTimeSlot(
@@ -68,7 +68,7 @@ public class TimeSlotController {
         return ResponseEntity.ok(ApiResponse.ok("Dars vaqti muvaffaqiyatli yangilandi", updated));
     }
 
-    @PatchMapping({"/api/admin/time-slots/{id}/toggle-active", "/api/v1/admin/time-slots/{id}/toggle-active"})
+    @PatchMapping({"/api/admin/time-slots/{id}/toggle-active", "/api/v1/admin/time-slots/{id}/toggle-active", "/api/shifts/{id}/status", "/api/admin/shifts/{id}/status"})
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     @Operation(summary = "Dars vaqtini faollashtirish / nofaol qilish (Deactivate)")
     public ResponseEntity<ApiResponse<TimeSlotDto>> toggleActive(@PathVariable Long id) {
@@ -76,7 +76,7 @@ public class TimeSlotController {
         return ResponseEntity.ok(ApiResponse.ok("Dars vaqti holati o'zgartirildi", toggled));
     }
 
-    @DeleteMapping({"/api/admin/time-slots/{id}", "/api/v1/admin/time-slots/{id}"})
+    @DeleteMapping({"/api/admin/time-slots/{id}", "/api/v1/admin/time-slots/{id}", "/api/shifts/{id}", "/api/admin/shifts/{id}"})
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     @Operation(summary = "Dars vaqtini o'chirish (agar jadvallarda ishlatilmagan bo'lsa)")
     public ResponseEntity<ApiResponse<Void>> deleteTimeSlot(@PathVariable Long id) {

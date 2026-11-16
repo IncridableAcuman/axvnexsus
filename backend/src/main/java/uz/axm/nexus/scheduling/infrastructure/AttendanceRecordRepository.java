@@ -10,6 +10,7 @@ import java.util.Optional;
 @Repository
 public interface AttendanceRecordRepository extends JpaRepository<AttendanceRecord, Long> {
     List<AttendanceRecord> findByLessonSessionId(Long lessonSessionId);
+    long countByLessonSessionId(Long lessonSessionId);
     Optional<AttendanceRecord> findByLessonSessionIdAndStudentId(Long lessonSessionId, Long studentId);
     List<AttendanceRecord> findByStudentId(Long studentId);
 

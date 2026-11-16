@@ -124,6 +124,11 @@ export interface Schedule {
   academicYear?: string;
   topic?: string;
   durationMinutes?: number;
+  startDate?: string;
+  endDate?: string;
+  status?: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED' | string;
+  timeSlotId?: number;
+  timeSlot?: TimeSlot;
 }
 
 export interface TimeSlot {
@@ -284,10 +289,45 @@ export interface UpdateProfileRequest {
   email?: string;
 }
 
+export interface ConflictDetailDto {
+  type: 'ROOM' | 'MENTOR' | 'GROUP' | 'TIME' | string;
+  message: string;
+  conflictingDate?: string;
+  existingScheduleId?: number;
+}
+
+export interface SchedulePreviewRequest {
+  dayPattern: SchedulingMode | string;
+  days?: string;
+  startDate: string;
+  endDate: string;
+  branchId?: number;
+  startTime?: string;
+  endTime?: string;
+  mentorId?: number;
+  groupId?: number;
+  room?: string;
+}
+
+export interface SchedulePreviewResponse {
+  pattern: string;
+  startDate: string;
+  endDate: string;
+  totalDaysInRange: number;
+  totalSessions: number;
+  holidaysSkipped: number;
+  sundaysSkipped: number;
+  sessionDates: string[];
+  hasConflicts: boolean;
+  conflicts: ConflictDetailDto[];
+}
+
 export interface ManualScheduleRequest {
   mentorName: string;
   mentorRole: string;
+  mentorId?: number;
   groupCode: string;
+  groupId?: number;
   gradeLevel: string;
   subject: string;
   dayPattern?: SchedulingMode | string;
@@ -299,6 +339,12 @@ export interface ManualScheduleRequest {
   branchLocation: string;
   branchId?: number;
   topic?: string;
+  startDate?: string;
+  endDate?: string;
+  shiftId?: number;
+  timeSlotId?: number;
+  updateScope?: 'FUTURE_ONLY' | 'ALL_UNCOMPLETED' | 'ONLY_THIS' | string;
+  generateSessions?: boolean;
   students?: {
     fullName: string;
     pinfl?: string;
@@ -712,6 +758,9 @@ export interface LessonSessionDto {
   excusedCount?: number;
   totalStudents?: number;
   attendanceRecords?: AttendanceItemDto[];
+  isManuallyModified?: boolean;
+  timeSlotId?: number;
+  shiftName?: string;
 }
 
 export interface CreateLessonSessionRequest {

@@ -7,6 +7,8 @@ import uz.axm.nexus.classrooms.domain.StudyGroup;
 import uz.axm.nexus.mentors.domain.Mentor;
 import uz.axm.nexus.shared.domain.BaseEntity;
 
+import java.time.LocalDate;
+
 @Entity
 @Table(name = "schedules")
 @Getter
@@ -35,6 +37,20 @@ public class Schedule extends BaseEntity {
 
     @Column(name = "day_pattern")
     private String dayPattern; // "ODD_DAYS", "EVEN_DAYS", "ALL_SIX_DAYS", "CUSTOM"
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
+
+    @Builder.Default
+    @Column(name = "status", nullable = false, length = 50)
+    private String status = "ACTIVE"; // "ACTIVE", "PAUSED", "COMPLETED", "ARCHIVED"
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "time_slot_id")
+    private TimeSlot timeSlot;
 
     @Column(nullable = false)
     private String startTime; // "15:00"

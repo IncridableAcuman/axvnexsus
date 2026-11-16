@@ -39,3 +39,5 @@ databaseChangeLog:
       file: db/changelog/changes/019-gamification-engine-enhancements.sql
   - include:
       file: db/changelog/changes/020-gamification-integrity-and-audit.sql
+  - include:
+      file: db/changelog/changes/021-recurring-schedule-calendar-mgmt.sql

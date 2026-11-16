@@ -1,5 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { Mentor, StudyGroup, ManualScheduleRequest, SchedulingMode, TimeSlot } from '../types';
+import type {
+  Mentor,
+  StudyGroup,
+  ManualScheduleRequest,
+  SchedulingMode,
+  TimeSlot,
+  Schedule,
+  SchedulePreviewResponse,
+} from '../types';
 import { X, Calendar, Clock, Check, AlertCircle, CalendarDays, Sparkles } from 'lucide-react';
 import { scheduleApi, timeSlotApi } from '../api';
 import { queryClient } from '@/app/providers/QueryProvider';
@@ -21,6 +29,8 @@ interface ManualScheduleModalProps {
   mentors?: Mentor[];
   groups?: StudyGroup[];
   onSuccess: () => void;
+  initialSchedule?: Schedule | null;
+  editMode?: boolean;
 }
 
 interface WeekdayItem {
@@ -46,6 +56,8 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
   mentors = [],
   groups = [],
   onSuccess,
+  initialSchedule = null,
+  editMode = false,
 }) => {
   const { t } = useTranslation();
 
@@ -63,7 +75,17 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
   const [endTime, setEndTime] = useState('16:30');
   const [room, setRoom] = useState('IT Lab 1');
   const [branchLocation, setBranchLocation] = useState('IT Park Yangiariq');
-  const [topic] = useState('');
+  const [topic, setTopic] = useState('');
+
+  // Date Range
+  const [startDate, setStartDate] = useState('2026-11-01');
+  const [endDate, setEndDate] = useState('2027-05-31');
+
+  // Update Scope for editing
+  const [updateScope, setUpdateScope] = useState<'FUTURE_ONLY' | 'ALL_UNCOMPLETED'>('FUTURE_ONLY');
+
+  // Preview state
+  const [preview, setPreview] = useState<SchedulePreviewResponse | null>(null);
 
   // Configurable Time Slots
   const [selectedSlotId, setSelectedSlotId] = useState<string>('2');
@@ -72,6 +94,50 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
     { id: 2, name: 'Tushdan keyingi (Afternoon)', startTime: '15:00', endTime: '16:30', durationMinutes: 90, active: true },
     { id: 3, name: 'Kechki smena (Evening)', startTime: '16:30', endTime: '18:00', durationMinutes: 90, active: true },
   ]);
+
+  // Sync initial schedule when provided for edit
+  useEffect(() => {
+    if (initialSchedule && editMode) {
+      setMentorName(initialSchedule.mentor?.fullName || '');
+      setMentorRole(initialSchedule.mentor?.role || 'IT mentor');
+      setGroupCode(initialSchedule.studyGroup?.groupCode || '');
+      setGradeLevel(initialSchedule.gradeLevel || '8-sinf');
+      setSubject(initialSchedule.subject || '');
+      setRoom(initialSchedule.room || 'IT Lab 1');
+      setStartTime(initialSchedule.startTime || '15:00');
+      setEndTime(initialSchedule.endTime || '16:30');
+      setBranchLocation(initialSchedule.branchLocation || 'IT Park Yangiariq');
+      setTopic(initialSchedule.topic || '');
+      if (initialSchedule.startDate) setStartDate(initialSchedule.startDate);
+      if (initialSchedule.endDate) setEndDate(initialSchedule.endDate);
+      if (initialSchedule.dayPattern) {
+        setSchedulingMode(initialSchedule.dayPattern as SchedulingMode);
+      }
+      if (initialSchedule.days) {
+        const parsed = initialSchedule.days.split(',').map((d) => d.trim()).filter(Boolean);
+        if (parsed.length > 0) setSelectedDays(parsed);
+      }
+      if (initialSchedule.timeSlotId) {
+        setSelectedSlotId(String(initialSchedule.timeSlotId));
+      }
+    } else if (!editMode && isOpen) {
+      setMentorName('Abdurasharipov Izzatbek');
+      setMentorRole('IT mentor');
+      setGroupCode('YA-26I0805');
+      setGradeLevel('8-sinf');
+      setSubject('Web Full-Stack Development');
+      setSchedulingMode('ODD_DAYS');
+      setSelectedDays(['Dushanba', 'Chorshanba', 'Juma']);
+      setStartTime('15:00');
+      setEndTime('16:30');
+      setRoom('IT Lab 1');
+      setBranchLocation('IT Park Yangiariq');
+      setTopic('');
+      setSelectedSlotId('2');
+      setStartDate('2026-11-01');
+      setEndDate('2027-05-31');
+    }
+  }, [initialSchedule, editMode, isOpen]);
 
   useEffect(() => {
     let mounted = true;
@@ -87,6 +153,34 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
     return () => { mounted = false; };
   }, []);
 
+  // Live preview effect (debounced)
+  useEffect(() => {
+    if (!isOpen || selectedDays.length === 0 || !startDate || !endDate) {
+      setPreview(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (typeof scheduleApi.preview === 'function') {
+        scheduleApi.preview({
+          dayPattern: schedulingMode,
+          days: selectedDays.join(', '),
+          startDate,
+          endDate,
+          startTime,
+          endTime,
+          room,
+        }).then((res) => {
+          if (res?.data) {
+            setPreview(res.data);
+          }
+        }).catch(() => {
+          // Gracefully ignore preview fetch errors
+        });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [isOpen, schedulingMode, selectedDays, startDate, endDate, startTime, endTime, room]);
+
   // Fast bulk student names input
   const [studentsBulkText, setStudentsBulkText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -97,7 +191,6 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
   const handleModeChange = (mode: SchedulingMode) => {
     setSchedulingMode(mode);
     setErrorMessage(null);
-
     switch (mode) {
       case 'ODD_DAYS':
         setSelectedDays(['Dushanba', 'Chorshanba', 'Juma']);
@@ -109,7 +202,6 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
         setSelectedDays(['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba']);
         break;
       case 'CUSTOM':
-        // If empty, keep current or default to Monday
         if (selectedDays.length === 0) {
           setSelectedDays(['Dushanba']);
         }
@@ -180,6 +272,11 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
       return;
     }
 
+    if (startDate && endDate && startDate > endDate) {
+      setErrorMessage("Boshlanish sanasi tugash sanasidan oldin bo'lishi kerak");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -195,10 +292,15 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
         district: branchLocation,
       }));
 
+      const matchedMentor = mentors.find(m => m.fullName.toLowerCase() === mentorName.toLowerCase());
+      const matchedGroup = groups.find(g => g.groupCode.toLowerCase() === groupCode.toLowerCase());
+
       const req: ManualScheduleRequest = {
         mentorName,
         mentorRole,
+        mentorId: matchedMentor?.id,
         groupCode,
+        groupId: matchedGroup?.id,
         gradeLevel,
         subject,
         dayPattern: schedulingMode,
@@ -208,12 +310,29 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
         endTime,
         room,
         branchLocation,
+        branchId: matchedGroup?.branchId || matchedMentor?.branchId,
         topic,
+        startDate,
+        endDate,
+        shiftId: selectedSlotId !== 'custom' ? Number(selectedSlotId) : undefined,
+        timeSlotId: selectedSlotId !== 'custom' ? Number(selectedSlotId) : undefined,
+        updateScope: editMode ? updateScope : undefined,
+        generateSessions: true,
         students,
       };
 
-      await scheduleApi.createManual(req);
+      if (editMode && initialSchedule?.id) {
+        if (typeof scheduleApi.updateRecurring === 'function') {
+          await scheduleApi.updateRecurring(initialSchedule.id, req);
+        } else {
+          await scheduleApi.update(initialSchedule.id, req);
+        }
+      } else {
+        await scheduleApi.createManual(req);
+      }
+
       queryClient.invalidateQueries({ queryKey: ['schedules'] });
+      queryClient.invalidateQueries({ queryKey: ['recurring-schedules'] });
       queryClient.invalidateQueries({ queryKey: ['lessons'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-admin'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-mentor'] });
@@ -254,10 +373,10 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)]">
-                Yangi Dars Jadvalini Qo‘shish
+                {editMode ? 'Dars Jadvalini Tahrirlash' : 'Yangi Dars Jadvalini Qo‘shish'}
               </h2>
               <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                6 kunlik akademik hafta: Toq va Juft kunlar taqsimoti
+                6 kunlik akademik hafta: Doimiy jadval va taqvim mashg'ulotlari
               </p>
             </div>
           </div>
@@ -316,6 +435,45 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Edit Scope Selector when editing existing schedule */}
+        {editMode && (
+          <div className="mt-4 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 space-y-2">
+            <span className="text-xs font-bold text-amber-700 dark:text-amber-400 block">
+              {t('scheduling.updateScope')} (Xavfsiz yangilash qamrovi)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setUpdateScope('FUTURE_ONLY')}
+                className={`p-2.5 rounded-xl text-xs font-semibold text-left transition border cursor-pointer ${
+                  updateScope === 'FUTURE_ONLY'
+                    ? 'bg-amber-500/20 border-amber-500 text-amber-900 dark:text-amber-200 shadow-xs'
+                    : 'bg-[var(--bg-surface)] border-border/20 text-[var(--text-muted)] hover:border-amber-500/30'
+                }`}
+              >
+                <div className="font-bold">{t('scheduling.futureOnly')}</div>
+                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                  Tarixiy va yakunlangan darslar daxlsiz qoladi
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setUpdateScope('ALL_UNCOMPLETED')}
+                className={`p-2.5 rounded-xl text-xs font-semibold text-left transition border cursor-pointer ${
+                  updateScope === 'ALL_UNCOMPLETED'
+                    ? 'bg-amber-500/20 border-amber-500 text-amber-900 dark:text-amber-200 shadow-xs'
+                    : 'bg-[var(--bg-surface)] border-border/20 text-[var(--text-muted)] hover:border-amber-500/30'
+                }`}
+              >
+                <div className="font-bold">{t('scheduling.allUncompleted')}</div>
+                <div className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                  Barcha o‘tkazilmagan darslar qayta hisoblanadi
+                </div>
+              </button>
+            </div>
           </div>
         )}
 
@@ -601,6 +759,40 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
             )}
           </div>
 
+          {/* Academic Date Range (Start & End Date) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="schedule-start-date" className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[var(--brand-primary)]" />
+                <span>{t('scheduling.startDate')} *</span>
+              </label>
+              <Input
+                id="schedule-start-date"
+                aria-label="Boshlanish sanasi"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="text-xs"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="schedule-end-date" className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[var(--brand-primary)]" />
+                <span>{t('scheduling.endDate')} *</span>
+              </label>
+              <Input
+                id="schedule-end-date"
+                aria-label="Tugash sanasi"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="text-xs"
+                required
+              />
+            </div>
+          </div>
+
           {/* Time Slot Selection & Room */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -683,6 +875,37 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
               />
             </div>
           </div>
+
+          {/* Calendar Generation Real-time Preview Banner */}
+          {preview && (
+            <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{t('scheduling.calendarPreview')}</span>
+                </span>
+                <span className="text-[11px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                  {preview.totalSessions} ta kutilayotgan mashg‘ulot
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 text-[11px] text-[var(--text-secondary)]">
+                <span className="px-2 py-0.5 rounded-md bg-[var(--bg-surface)] border border-border/20">
+                  Oraliq: <strong>{preview.totalDaysInRange} kun</strong>
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium">
+                  Bayramlar chetlatildi: <strong>{preview.holidaysSkipped}</strong>
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-slate-500/15 text-slate-700 dark:text-slate-300">
+                  Yakshanbalar: <strong>{preview.sundaysSkipped}</strong>
+                </span>
+              </div>
+              {preview.hasConflicts && (
+                <div className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold pt-1">
+                  ⚠️ Diqqat: tanlangan sanalarda to‘qnashuvlar mavjud!
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Bulk Student Names Input */}
           <div className="pt-2">
