@@ -13,4 +13,11 @@ import lombok.NoArgsConstructor;
 public class EnrollStudentRequest {
     @NotNull(message = "O'quvchi ID raqami kiritilishi shart")
     private Long studentId;
+
+    private boolean allowCapacityOverride;
+    private String overrideReason;
+
+    public EnrollStudentRequest(Long studentId) {
+        this.studentId = studentId;
+    }
 }

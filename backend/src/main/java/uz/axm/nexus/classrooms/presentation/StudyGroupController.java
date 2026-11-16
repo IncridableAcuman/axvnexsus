@@ -92,7 +92,13 @@ public class StudyGroupController {
             @Valid @RequestBody EnrollStudentRequest request
     ) {
         String actor = currentUserHelper.getCurrentUsername();
-        GroupMembershipDto membership = educationStructureService.enrollStudent(id, request.getStudentId(), actor);
+        GroupMembershipDto membership = educationStructureService.enrollStudent(
+                id,
+                request.getStudentId(),
+                actor,
+                request.isAllowCapacityOverride(),
+                request.getOverrideReason()
+        );
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("O'quvchi guruhga biriktirildi", membership));
     }

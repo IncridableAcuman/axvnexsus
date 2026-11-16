@@ -11,7 +11,9 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import uz.axm.nexus.branches.application.dto.CreateBranchRequest;
+import uz.axm.nexus.branches.application.dto.CreateRoomRequest;
 import uz.axm.nexus.branches.application.dto.UpdateBranchRequest;
+import uz.axm.nexus.branches.application.dto.UpdateRoomRequest;
 import uz.axm.nexus.branches.domain.Branch;
 import uz.axm.nexus.branches.infrastructure.BranchRepository;
 
@@ -166,5 +168,116 @@ class BranchManagementIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data", isA(java.util.List.class)));
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"SUPER_ADMIN", "ADMIN"})
+    @DisplayName("Filialga yangi xona yaratish, unikal nom tekshiruvi, yangilash va o'chirish")
+    void shouldCreateUpdateAndDeleteRoom() throws Exception {
+        Branch branch = branchRepository.findByCodeIgnoreCase("ITP-YANGIARIQ").orElseThrow();
+        String roomName = "Audit Lab " + (System.currentTimeMillis() % 100000);
+
+        CreateRoomRequest createReq = CreateRoomRequest.builder()
+                .name(roomName)
+                .roomType("ROBOTICS_LAB")
+                .capacity(20)
+                .status("ACTIVE")
+                .build();
+
+        // 1. Create room
+        String res = mockMvc.perform(post("/api/branches/" + branch.getId() + "/rooms")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createReq)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.name").value(roomName))
+                .andExpect(jsonPath("$.data.capacity").value(20))
+                .andReturn().getResponse().getContentAsString();
+
+        Number roomId = com.jayway.jsonpath.JsonPath.read(res, "$.data.id");
+
+        // 2. Duplicate room name in the same branch should fail
+        mockMvc.perform(post("/api/branches/" + branch.getId() + "/rooms")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createReq)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message", containsString("allaqachon mavjud")));
+
+        // 3. Update room
+        UpdateRoomRequest updateReq = UpdateRoomRequest.builder()
+                .name(roomName + " Yangilangan")
+                .roomType("ROBOTICS_LAB")
+                .capacity(24)
+                .status("ACTIVE")
+                .build();
+
+        mockMvc.perform(put("/api/branches/" + branch.getId() + "/rooms/" + roomId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateReq)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.name").value(roomName + " Yangilangan"))
+                .andExpect(jsonPath("$.data.capacity").value(24));
+
+        // 4. Delete / deactivate room
+        mockMvc.perform(delete("/api/branches/" + branch.getId() + "/rooms/" + roomId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"SUPER_ADMIN", "ADMIN"})
+    @DisplayName("Filial mentorlari va faoliyat audit tarixini olish")
+    void shouldGetBranchMentorsAndActivity() throws Exception {
+        Branch branch = branchRepository.findByCodeIgnoreCase("ITP-YANGIARIQ").orElseThrow();
+
+        mockMvc.perform(get("/api/branches/" + branch.getId() + "/mentors"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data", isA(java.util.List.class)));
+
+        mockMvc.perform(get("/api/branches/" + branch.getId() + "/activity"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data", isA(java.util.List.class)));
+    }
+
+    @Test
+    @WithMockUser(username = "unauthorized_student", roles = {"STUDENT"})
+    @DisplayName("Boshqa filialga tegishli bo'lmagan o'quvchi murojaatida 403 Forbidden qaytarilishi kerak (IDOR himoyasi)")
+    void shouldBlockUnauthorizedStudentFromAccessingOtherBranch() throws Exception {
+        Branch branch = branchRepository.findByCodeIgnoreCase("ITP-YANGIARIQ").orElseThrow();
+
+        mockMvc.perform(get("/api/branches/" + branch.getId() + "/statistics"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/branches/" + branch.getId() + "/mentors"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/branches/" + branch.getId() + "/rooms"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/branches/" + branch.getId() + "/activity"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "admin", roles = {"SUPER_ADMIN", "ADMIN"})
+    @DisplayName("Guruhlari bo'lgan filialni to'liq o'chirib yuborish o'rniga xavfsiz arxivlash tekshiruvi")
+    void shouldSafelyArchiveBranchWithActiveGroups() throws Exception {
+        Branch branch = branchRepository.findByCodeIgnoreCase("ITP-YANGIARIQ").orElseThrow();
+
+        mockMvc.perform(delete("/api/branches/" + branch.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
+
+        // Filial bazadan jismonan o'chib ketmasligi kerak, holati ARCHIVED bo'lishi kerak
+        Branch archived = branchRepository.findById(branch.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("ARCHIVED", archived.getStatus());
+
+        // Testdan so'ng qayta faollashtirish
+        archived.setStatus("ACTIVE");
+        branchRepository.save(archived);
     }
 }

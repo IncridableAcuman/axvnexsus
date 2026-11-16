@@ -41,3 +41,5 @@ databaseChangeLog:
       file: db/changelog/changes/020-gamification-integrity-and-audit.sql
   - include:
       file: db/changelog/changes/021-recurring-schedule-calendar-mgmt.sql
+  - include:
+      file: db/changelog/changes/022-branch-and-room-integrity.sql

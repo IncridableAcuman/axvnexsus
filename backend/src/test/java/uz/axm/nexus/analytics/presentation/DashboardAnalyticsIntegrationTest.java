@@ -348,7 +348,7 @@ class DashboardAnalyticsIntegrationTest {
                 .andExpect(jsonPath("$.weeklyAttendance", hasSize(6)))
                 .andExpect(jsonPath("$.weeklyAttendance[0].day", notNullValue()))
                 .andExpect(jsonPath("$.roomOccupancy", not(empty())))
-                .andExpect(jsonPath("$.roomOccupancy[0].name", containsString("IT Lab 1")))
+                .andExpect(jsonPath("$.roomOccupancy[*].name", hasItem(containsString("IT Lab 1"))))
                 .andExpect(jsonPath("$.enrollmentByGrade['8-sinf']", greaterThanOrEqualTo(1)))
                 .andExpect(jsonPath("$.systemTrend", notNullValue()));
     }

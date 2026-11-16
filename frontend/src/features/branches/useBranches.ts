@@ -12,6 +12,8 @@ export const BRANCH_QUERY_KEYS = {
   statistics: (id: number) => [...BRANCH_QUERY_KEYS.detail(id), 'statistics'] as const,
   groups: (id: number) => [...BRANCH_QUERY_KEYS.detail(id), 'groups'] as const,
   rooms: (id: number) => [...BRANCH_QUERY_KEYS.detail(id), 'rooms'] as const,
+  mentors: (id: number) => [...BRANCH_QUERY_KEYS.detail(id), 'mentors'] as const,
+  activity: (id: number) => [...BRANCH_QUERY_KEYS.detail(id), 'activity'] as const,
 };
 
 export function useBranches(filters?: { status?: string; region?: string; search?: string }) {
@@ -76,6 +78,78 @@ export function useBranchRooms(branchId?: number) {
       return res.data?.data ?? [];
     },
     enabled: !!branchId,
+  });
+}
+
+export function useBranchMentors(branchId?: number) {
+  return useQuery({
+    queryKey: branchId ? BRANCH_QUERY_KEYS.mentors(branchId) : ['branches', 'mentors', 'none'],
+    queryFn: async () => {
+      if (!branchId) return [];
+      const res = await branchApi.getMentors(branchId);
+      return res.data?.data ?? [];
+    },
+    enabled: !!branchId,
+  });
+}
+
+export function useBranchActivity(branchId?: number) {
+  return useQuery({
+    queryKey: branchId ? BRANCH_QUERY_KEYS.activity(branchId) : ['branches', 'activity', 'none'],
+    queryFn: async () => {
+      if (!branchId) return [];
+      const res = await branchApi.getActivity(branchId);
+      return res.data?.data ?? [];
+    },
+    enabled: !!branchId,
+  });
+}
+
+export function useCreateBranchRoom() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ branchId, data }: { branchId: number; data: import('@/types').CreateRoomRequest }) => {
+      const res = await branchApi.createRoom(branchId, data);
+      return res.data?.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: BRANCH_QUERY_KEYS.rooms(variables.branchId) });
+      queryClient.invalidateQueries({ queryKey: BRANCH_QUERY_KEYS.statistics(variables.branchId) });
+      queryClient.invalidateQueries({ queryKey: BRANCH_QUERY_KEYS.lists() });
+    },
+  });
+}
+
+export function useUpdateBranchRoom() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ branchId, roomId, data }: { branchId: number; roomId: number; data: import('@/types').UpdateRoomRequest }) => {
+      const res = await branchApi.updateRoom(branchId, roomId, data);
+      return res.data?.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: BRANCH_QUERY_KEYS.rooms(variables.branchId) });
+      queryClient.invalidateQueries({ queryKey: BRANCH_QUERY_KEYS.statistics(variables.branchId) });
+      queryClient.invalidateQueries({ queryKey: BRANCH_QUERY_KEYS.lists() });
+    },
+  });
+}
+
+export function useDeleteBranchRoom() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ branchId, roomId }: { branchId: number; roomId: number }) => {
+      const res = await branchApi.deleteRoom(branchId, roomId);
+      return res.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: BRANCH_QUERY_KEYS.rooms(variables.branchId) });
+      queryClient.invalidateQueries({ queryKey: BRANCH_QUERY_KEYS.statistics(variables.branchId) });
+      queryClient.invalidateQueries({ queryKey: BRANCH_QUERY_KEYS.lists() });
+    },
   });
 }
 

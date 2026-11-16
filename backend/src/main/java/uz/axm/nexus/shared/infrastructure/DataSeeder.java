@@ -12,8 +12,10 @@ import uz.axm.nexus.access.infrastructure.RoleRepository;
 import uz.axm.nexus.branches.domain.Branch;
 import uz.axm.nexus.branches.infrastructure.BranchRepository;
 import uz.axm.nexus.classrooms.domain.GroupMembership;
+import uz.axm.nexus.classrooms.domain.Room;
 import uz.axm.nexus.classrooms.domain.StudyGroup;
 import uz.axm.nexus.classrooms.infrastructure.GroupMembershipRepository;
+import uz.axm.nexus.classrooms.infrastructure.RoomRepository;
 import uz.axm.nexus.classrooms.infrastructure.StudyGroupRepository;
 import uz.axm.nexus.education.domain.AcademicPeriod;
 import uz.axm.nexus.education.infrastructure.AcademicPeriodRepository;
@@ -85,6 +87,7 @@ public class DataSeeder implements CommandLineRunner {
     private final PermissionRepository permissionRepository;
     private final AcademicPeriodRepository academicPeriodRepository;
     private final BranchRepository branchRepository;
+    private final RoomRepository roomRepository;
     private final GroupMembershipRepository groupMembershipRepository;
     private final MentorProfileRepository mentorProfileRepository;
     private final MentorSkillRepository mentorSkillRepository;
@@ -167,6 +170,16 @@ public class DataSeeder implements CommandLineRunner {
                         .email("yangiariq@axm.uz")
                         .status("ACTIVE")
                         .build()));
+
+        // 1.2 Default Branch Classrooms & Laboratories
+        if (roomRepository.findByBranchId(branchYangiariq.getId()).isEmpty()) {
+            roomRepository.saveAll(List.of(
+                    Room.builder().name("IT-2").branch(branchYangiariq).branchLocation(branchYangiariq.getName()).capacity(16).roomType("IT_LAB").status("ACTIVE").build(),
+                    Room.builder().name("IT Lab 1").branch(branchYangiariq).branchLocation(branchYangiariq.getName()).capacity(16).roomType("IT_LAB").status("ACTIVE").build(),
+                    Room.builder().name("IT Lab 2").branch(branchYangiariq).branchLocation(branchYangiariq.getName()).capacity(16).roomType("IT_LAB").status("ACTIVE").build(),
+                    Room.builder().name("Nazariy xona 1").branch(branchYangiariq).branchLocation(branchYangiariq.getName()).capacity(20).roomType("THEORY_ROOM").status("ACTIVE").build()
+            ));
+        }
 
         // 2. Mentors
         Mentor mentorIzzatbek = mentorRepository.save(Mentor.builder()

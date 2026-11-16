@@ -1,5 +1,6 @@
 package uz.axm.nexus.branches.application.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -35,9 +36,11 @@ public class UpdateBranchRequest {
     @Size(max = 255, message = "Manzil 255 belgidan oshmasligi kerak")
     private String address;
 
+    @Pattern(regexp = "^$|^(\\+998)?\\s?[0-9]{2}\\s?[0-9]{3}\\s?[0-9]{2}\\s?[0-9]{2}$|^\\+?[0-9]{7,15}$", message = "Telefon raqami formati noto'g'ri")
     @Size(max = 50, message = "Telefon raqami 50 belgidan oshmasligi kerak")
     private String phone;
 
+    @Email(message = "Elektron pochta manzili formati noto'g'ri")
     @Size(max = 100, message = "Email 100 belgidan oshmasligi kerak")
     private String email;
 

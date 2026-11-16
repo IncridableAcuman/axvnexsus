@@ -576,11 +576,31 @@ export const branchApi = {
   },
 
   getGroups: (id: number) => {
-    return api.get<{ success: boolean; data: import('./types').StudyGroup[] }>(`/branches/${id}/groups`);
+    return api.get<{ success: boolean; data: import('./types').BranchGroupDto[] }>(`/branches/${id}/groups`);
   },
 
   getRooms: (id: number) => {
-    return api.get<{ success: boolean; data: import('./types').Room[] }>(`/branches/${id}/rooms`);
+    return api.get<{ success: boolean; data: import('./types').BranchRoomDto[] }>(`/branches/${id}/rooms`);
+  },
+
+  getMentors: (id: number) => {
+    return api.get<{ success: boolean; data: import('./types').BranchMentorDto[] }>(`/branches/${id}/mentors`);
+  },
+
+  getActivity: (id: number) => {
+    return api.get<{ success: boolean; data: import('./types').BranchActivityDto[] }>(`/branches/${id}/activity`);
+  },
+
+  createRoom: (id: number, data: import('./types').CreateRoomRequest) => {
+    return api.post<{ success: boolean; message: string; data: import('./types').BranchRoomDto }>(`/branches/${id}/rooms`, data);
+  },
+
+  updateRoom: (id: number, roomId: number, data: import('./types').UpdateRoomRequest) => {
+    return api.put<{ success: boolean; message: string; data: import('./types').BranchRoomDto }>(`/branches/${id}/rooms/${roomId}`, data);
+  },
+
+  deleteRoom: (id: number, roomId: number) => {
+    return api.delete<{ success: boolean; message: string }>(`/branches/${id}/rooms/${roomId}`);
   },
 };
 

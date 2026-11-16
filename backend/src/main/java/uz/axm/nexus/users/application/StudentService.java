@@ -123,6 +123,13 @@ public class StudentService {
         String hemisId = hemisIdGeneratorService.generateStudentId();
         String rawPassword = hemisIdGeneratorService.generatePassword();
 
+        Branch branch = null;
+        if (request.getBranchId() != null) {
+            branch = branchRepository.findById(request.getBranchId()).orElse(null);
+        } else if (studyGroup != null && studyGroup.getBranch() != null) {
+            branch = studyGroup.getBranch();
+        }
+
         // 3. Create Student Entity
         Student student = Student.builder()
                 .fullName(fullName)
@@ -132,6 +139,7 @@ public class StudentService {
                 .direction(request.getDirection() != null ? request.getDirection() : (studyGroup != null ? studyGroup.getSubject() : "Web Full-Stack"))
                 .district(request.getDistrict() != null ? request.getDistrict() : "Yangiariq tumani")
                 .branchLocation(request.getBranchLocation() != null ? request.getBranchLocation() : (studyGroup != null ? studyGroup.getBranchLocation() : "IT Park Yangiariq"))
+                .branch(branch)
                 .phone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : null)
                 .status("Faol")
                 .studyGroup(studyGroup)
@@ -300,6 +308,9 @@ public class StudentService {
         if (phone != null) student.setPhone(phone);
         if (group != null) student.setStudyGroup(group);
         if (mentor != null) student.setMentor(mentor);
+        if (group != null && group.getBranch() != null && student.getBranch() == null) {
+            student.setBranch(group.getBranch());
+        }
         if (student.getStatus() == null) student.setStatus("Faol");
 
         Student saved = studentRepository.save(student);

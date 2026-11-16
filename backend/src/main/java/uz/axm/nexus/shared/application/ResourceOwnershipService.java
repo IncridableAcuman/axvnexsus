@@ -250,7 +250,7 @@ public class ResourceOwnershipService {
                     && mentorOpt.get().getBranch().getId().equals(targetBranchId)) {
                 return;
             }
-            return;
+            throw new AccessDeniedException("Mentor faqat o'ziga biriktirilgan filial ma'lumotlariga kirish huquqiga ega.");
         }
 
         if (currentUserHelper.isStudent()) {
@@ -259,7 +259,7 @@ public class ResourceOwnershipService {
                     && studentOpt.get().getBranch().getId().equals(targetBranchId)) {
                 return;
             }
-            return;
+            throw new AccessDeniedException("O'quvchi faqat o'zi ta'lim oladigan filial ma'lumotlariga kirish huquqiga ega.");
         }
 
         throw new AccessDeniedException("Filial ma'lumotlariga kirish uchun yetarli huquq mavjud emas.");

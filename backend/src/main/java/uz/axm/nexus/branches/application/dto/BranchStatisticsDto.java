@@ -21,5 +21,6 @@ public class BranchStatisticsDto {
     private long totalRooms;
     private long totalRoomCapacity;
     private double averageGroupSize;
-    private double capacityUtilizationRate; // percentage
+    private Double capacityUtilizationRate; // percentage, null when rooms are not configured
+    private boolean hasCapacityData;
 }

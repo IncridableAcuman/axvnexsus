@@ -63,7 +63,76 @@ export interface BranchStatisticsDto {
   totalRooms: number;
   totalRoomCapacity: number;
   averageGroupSize: number;
-  capacityUtilizationRate: number;
+  capacityUtilizationRate: number | null;
+  hasCapacityData?: boolean;
+}
+
+export interface BranchGroupDto {
+  id: number;
+  groupCode: string;
+  gradeLevel: string;
+  subject?: string;
+  mentorId?: number;
+  mentorName?: string;
+  room?: string;
+  studentCount: number;
+  maxCapacity: number;
+  overCapacity: boolean;
+  overCapacityWarning?: string | null;
+  status: string;
+  scheduleDays?: string;
+  scheduleTime?: string;
+}
+
+export interface BranchRoomDto {
+  id: number;
+  name: string;
+  branchId: number;
+  branchName: string;
+  roomType: string;
+  capacity: number;
+  status: string;
+  currentOccupancy: number;
+  assignedGroups: string[];
+  availabilityStatus: 'AVAILABLE' | 'OCCUPIED' | 'OVERLOADED';
+}
+
+export interface BranchMentorDto {
+  id: number;
+  fullName: string;
+  role: string;
+  email?: string;
+  phone?: string;
+  specialization?: string;
+  assignedGroupCount: number;
+  assignedGroups: string[];
+  weeklyWorkloadHours: number;
+  status: string;
+}
+
+export interface BranchActivityDto {
+  id: number;
+  action: string;
+  entityName: string;
+  entityId: string;
+  performedBy: string;
+  outcome?: string;
+  details: string;
+  createdAt: string;
+}
+
+export interface CreateRoomRequest {
+  name: string;
+  roomType?: string;
+  capacity: number;
+  status?: string;
+}
+
+export interface UpdateRoomRequest {
+  name: string;
+  roomType?: string;
+  capacity: number;
+  status?: string;
 }
 
 export interface Mentor {

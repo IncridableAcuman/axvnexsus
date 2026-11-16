@@ -232,6 +232,11 @@ public class EducationStructureService {
 
     @Transactional
     public GroupMembershipDto enrollStudent(Long groupId, Long studentId, String actor) {
+        return enrollStudent(groupId, studentId, actor, false, null);
+    }
+
+    @Transactional
+    public GroupMembershipDto enrollStudent(Long groupId, Long studentId, String actor, boolean allowCapacityOverride, String overrideReason) {
         StudyGroup group = studyGroupRepository.findById(groupId)
                 .orElseThrow(() -> new ResourceNotFoundException("Guruh topilmadi: #" + groupId));
 
@@ -256,7 +261,12 @@ public class EducationStructureService {
         List<GroupMembership> currentMembers = groupMembershipRepository.findByGroupIdAndStatus(groupId, "ACTIVE");
         int maxCap = group.getMaxCapacity() != null ? group.getMaxCapacity() : 16;
         if (currentMembers.size() >= maxCap) {
-            throw new BusinessException("Guruh to'lgan! Maksimal sig'im: " + maxCap + " nafar.");
+            if (allowCapacityOverride && overrideReason != null && !overrideReason.isBlank()) {
+                auditService.logAction("GROUP_CAPACITY_OVERRIDE", "StudyGroup", String.valueOf(groupId), actor,
+                        "Guruh sig'imi ma'muriy ruxsat (override) bilan oshirildi (Sig'im: " + maxCap + ", Yangi a'zolar: " + (currentMembers.size() + 1) + "). Asos: " + overrideReason.trim());
+            } else {
+                throw new BusinessException("Guruh to'lgan! Maksimal sig'im: " + maxCap + " nafar. Yangi a'zo qo'shish uchun ma'muriyat ruxsati (override) talab etiladi.");
+            }
         }
 
         GroupMembership membership = GroupMembership.builder()

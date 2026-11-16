@@ -15,7 +15,7 @@ const DICTIONARIES: Record<SupportedLocale, typeof uz> = {
 interface I18nContextType {
   locale: SupportedLocale;
   setLocale: (newLocale: SupportedLocale) => Promise<void>;
-  t: (keyPath: string, params?: Record<string, string | number>) => string;
+  t: (keyPath: string, paramsOrDefault?: Record<string, string | number> | string, params?: Record<string, string | number>) => string;
   formatDate: (date: string | Date | number, options?: Intl.DateTimeFormatOptions) => string;
   formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
   formatRelative: (date: string | Date) => string;
@@ -82,8 +82,11 @@ export const resolveTranslation = (
   dict: any,
   locale: SupportedLocale,
   keyPath: string,
+  paramsOrDefault?: Record<string, string | number> | string,
   params?: Record<string, string | number>
 ): string => {
+  const actualParams = typeof paramsOrDefault === 'object' && paramsOrDefault !== null ? paramsOrDefault : params;
+  const defaultFallback = typeof paramsOrDefault === 'string' ? paramsOrDefault : undefined;
   const keys = keyPath.split('.');
   let current: any = dict;
 
@@ -108,15 +111,15 @@ export const resolveTranslation = (
         if ((import.meta as any).env?.DEV) {
           console.warn(`[i18n] Missing translation key: "${keyPath}" for locale: "${locale}"`);
         }
-        return keyPath;
+        return defaultFallback !== undefined ? defaultFallback : keyPath;
       }
       break;
     }
   }
 
   // Pluralization handling: if target is an object with plural forms (one/few/many/other)
-  if (typeof current === 'object' && current !== null && params && typeof params.count === 'number') {
-    const pluralRule = new Intl.PluralRules(locale).select(params.count);
+  if (typeof current === 'object' && current !== null && actualParams && typeof actualParams.count === 'number') {
+    const pluralRule = new Intl.PluralRules(locale).select(actualParams.count);
     if (current[pluralRule]) {
       current = current[pluralRule];
     } else if (current.other) {
@@ -125,15 +128,15 @@ export const resolveTranslation = (
   }
 
   if (typeof current !== 'string') {
-    return keyPath;
+    return defaultFallback !== undefined ? defaultFallback : keyPath;
   }
 
-  if (!params) {
+  if (!actualParams) {
     return current;
   }
 
   // Replace both {paramName} and {{paramName}}
-  return Object.entries(params).reduce((str, [paramKey, paramVal]) => {
+  return Object.entries(actualParams).reduce((str, [paramKey, paramVal]) => {
     return str
       .replaceAll(`{${paramKey}}`, String(paramVal))
       .replaceAll(`{{${paramKey}}}`, String(paramVal));
@@ -200,9 +203,9 @@ export const I18nProvider: React.FC<{ children: React.ReactNode; initialLocale?:
 
   // Nested translation resolver with Pluralization and Interpolation
   const t = useCallback(
-    (keyPath: string, params?: Record<string, string | number>): string => {
+    (keyPath: string, paramsOrDefault?: Record<string, string | number> | string, params?: Record<string, string | number>): string => {
       const dict = DICTIONARIES[locale] || DICTIONARIES.uz;
-      return resolveTranslation(dict, locale, keyPath, params);
+      return resolveTranslation(dict, locale, keyPath, paramsOrDefault, params);
     },
     [locale]
   );
@@ -250,7 +253,7 @@ export const useTranslation = (): I18nContextType => {
     return {
       locale: 'uz',
       setLocale: async () => {},
-      t: (k: string, p?: Record<string, string | number>) => resolveTranslation(DICTIONARIES.uz, 'uz', k, p),
+      t: (k: string, p?: Record<string, string | number> | string, params?: Record<string, string | number>) => resolveTranslation(DICTIONARIES.uz, 'uz', k, p, params),
       formatDate: (d: string | Date | number, o?: Intl.DateTimeFormatOptions) => formatLocalizedDate(d, 'uz', o),
       formatNumber: (n: number, o?: Intl.NumberFormatOptions) => formatLocalizedNumber(n, 'uz', o),
       formatRelative: (d: string | Date) => formatRelativeTime(d, 'uz'),
@@ -258,3 +261,5 @@ export const useTranslation = (): I18nContextType => {
   }
   return context;
 };
+
+export const useI18n = useTranslation;

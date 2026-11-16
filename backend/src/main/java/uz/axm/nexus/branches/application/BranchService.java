@@ -5,16 +5,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import uz.axm.nexus.audit.application.AuditService;
-import uz.axm.nexus.branches.application.dto.BranchDto;
-import uz.axm.nexus.branches.application.dto.BranchStatisticsDto;
-import uz.axm.nexus.branches.application.dto.CreateBranchRequest;
-import uz.axm.nexus.branches.application.dto.UpdateBranchRequest;
+import uz.axm.nexus.audit.domain.AuditLog;
+import uz.axm.nexus.audit.infrastructure.AuditLogRepository;
+import uz.axm.nexus.branches.application.dto.*;
 import uz.axm.nexus.branches.domain.Branch;
 import uz.axm.nexus.branches.infrastructure.BranchRepository;
 import uz.axm.nexus.classrooms.domain.Room;
 import uz.axm.nexus.classrooms.domain.StudyGroup;
+import uz.axm.nexus.classrooms.infrastructure.GroupMembershipRepository;
 import uz.axm.nexus.classrooms.infrastructure.RoomRepository;
 import uz.axm.nexus.classrooms.infrastructure.StudyGroupRepository;
+import uz.axm.nexus.mentors.domain.Mentor;
 import uz.axm.nexus.mentors.infrastructure.MentorRepository;
 import uz.axm.nexus.shared.application.BusinessException;
 import uz.axm.nexus.shared.application.ResourceNotFoundException;
@@ -34,6 +35,8 @@ public class BranchService {
     private final StudentRepository studentRepository;
     private final MentorRepository mentorRepository;
     private final RoomRepository roomRepository;
+    private final GroupMembershipRepository groupMembershipRepository;
+    private final AuditLogRepository auditLogRepository;
     private final AuditService auditService;
 
     @Transactional(readOnly = true)
@@ -83,26 +86,30 @@ public class BranchService {
         long totalStudents = studentRepository.countByBranchId(id);
         long activeStudents = studentRepository.countByBranchIdAndStatus(id, "Faol");
         if (activeStudents == 0 && totalStudents > 0) {
-            activeStudents = totalStudents; // Fallback for case sensitivity or non-standard statuses
+            activeStudents = totalStudents;
         }
 
         long totalGroups = studyGroupRepository.countByBranchId(id);
         long activeGroups = studyGroupRepository.countByBranchIdAndStatus(id, "ACTIVE");
         long totalMentors = mentorRepository.countByBranchId(id);
-        long totalRooms = roomRepository.countByBranchId(id);
-
+        
         List<Room> rooms = roomRepository.findByBranchId(id);
+        long totalRooms = rooms.size();
         long totalRoomCapacity = rooms.stream()
+                .filter(r -> !"INACTIVE".equalsIgnoreCase(r.getStatus()))
                 .mapToLong(r -> r.getCapacity() != null ? r.getCapacity() : 16)
                 .sum();
 
         double avgGroupSize = activeGroups > 0 ? (double) activeStudents / activeGroups : 0.0;
         avgGroupSize = Math.round(avgGroupSize * 10.0) / 10.0;
 
-        double capacityUtilizationRate = totalRoomCapacity > 0
-                ? (double) activeStudents / totalRoomCapacity * 100.0
-                : 0.0;
-        capacityUtilizationRate = Math.min(100.0, Math.round(capacityUtilizationRate * 10.0) / 10.0);
+        Double capacityUtilizationRate = null;
+        boolean hasCapacityData = false;
+        if (totalRoomCapacity > 0) {
+            double rate = (double) activeStudents / totalRoomCapacity * 100.0;
+            capacityUtilizationRate = Math.min(100.0, Math.round(rate * 10.0) / 10.0);
+            hasCapacityData = true;
+        }
 
         return BranchStatisticsDto.builder()
                 .branchId(branch.getId())
@@ -117,6 +124,7 @@ public class BranchService {
                 .totalRoomCapacity(totalRoomCapacity)
                 .averageGroupSize(avgGroupSize)
                 .capacityUtilizationRate(capacityUtilizationRate)
+                .hasCapacityData(hasCapacityData)
                 .build();
     }
 
@@ -195,15 +203,244 @@ public class BranchService {
     }
 
     @Transactional(readOnly = true)
-    public List<StudyGroup> getBranchGroups(Long branchId) {
+    public List<BranchGroupDto> getBranchGroups(Long branchId) {
         getEntityById(branchId);
-        return studyGroupRepository.findByBranchId(branchId);
+        List<StudyGroup> groups = studyGroupRepository.findByBranchId(branchId);
+
+        return groups.stream().map(g -> {
+            long activeMembers = groupMembershipRepository.countByGroupIdAndStatus(g.getId(), "ACTIVE");
+            int studentCount;
+            if (activeMembers > 0) {
+                studentCount = (int) activeMembers;
+            } else if (g.getStudentCount() != null && g.getStudentCount() > 0) {
+                studentCount = g.getStudentCount();
+            } else {
+                studentCount = (int) studentRepository.countByStudyGroupId(g.getId());
+            }
+
+            int capacity = g.getMaxCapacity() != null ? g.getMaxCapacity() : 16;
+            boolean isOverCapacity = studentCount > capacity;
+            String warning = isOverCapacity
+                    ? "Guruh belgilangan sig'imdan oshgan (" + studentCount + "/" + capacity + ")"
+                    : null;
+
+            return BranchGroupDto.builder()
+                    .id(g.getId())
+                    .groupCode(g.getGroupCode())
+                    .gradeLevel(g.getGradeLevel())
+                    .subject(g.getSubject())
+                    .mentorId(g.getMentor() != null ? g.getMentor().getId() : null)
+                    .mentorName(g.getMentor() != null ? g.getMentor().getFullName() : null)
+                    .room(g.getRoom())
+                    .studentCount(studentCount)
+                    .maxCapacity(capacity)
+                    .overCapacity(isOverCapacity)
+                    .overCapacityWarning(warning)
+                    .status(g.getStatus())
+                    .scheduleDays(g.getScheduleDays())
+                    .scheduleTime(g.getScheduleTime())
+                    .build();
+        }).collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<Room> getBranchRooms(Long branchId) {
+    public List<BranchRoomDto> getBranchRooms(Long branchId) {
+        Branch branch = getEntityById(branchId);
+        List<Room> rooms = roomRepository.findByBranchId(branchId);
+        List<StudyGroup> groups = studyGroupRepository.findByBranchId(branchId);
+
+        return rooms.stream().map(r -> {
+            List<String> assignedGroups = groups.stream()
+                    .filter(g -> r.getName().equalsIgnoreCase(g.getRoom()))
+                    .map(StudyGroup::getGroupCode)
+                    .collect(Collectors.toList());
+
+            int occupancy = groups.stream()
+                    .filter(g -> r.getName().equalsIgnoreCase(g.getRoom()))
+                    .mapToInt(g -> {
+                        long active = groupMembershipRepository.countByGroupIdAndStatus(g.getId(), "ACTIVE");
+                        return active > 0 ? (int) active : (g.getStudentCount() != null ? g.getStudentCount() : 0);
+                    })
+                    .sum();
+
+            int cap = r.getCapacity() != null ? r.getCapacity() : 16;
+            String availability = "AVAILABLE";
+            if (occupancy > cap) {
+                availability = "OVERLOADED";
+            } else if (occupancy > 0) {
+                availability = "OCCUPIED";
+            }
+
+            return BranchRoomDto.builder()
+                    .id(r.getId())
+                    .name(r.getName())
+                    .branchId(branch.getId())
+                    .branchName(branch.getName())
+                    .roomType(r.getRoomType() != null ? r.getRoomType() : "IT_LAB")
+                    .capacity(cap)
+                    .status(r.getStatus() != null ? r.getStatus() : "ACTIVE")
+                    .currentOccupancy(occupancy)
+                    .assignedGroups(assignedGroups)
+                    .availabilityStatus(availability)
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<BranchMentorDto> getBranchMentors(Long branchId) {
         getEntityById(branchId);
-        return roomRepository.findByBranchId(branchId);
+        List<Mentor> mentors = mentorRepository.findByBranchId(branchId);
+        List<StudyGroup> groups = studyGroupRepository.findByBranchId(branchId);
+
+        return mentors.stream().map(m -> {
+            List<String> assignedGroups = groups.stream()
+                    .filter(g -> g.getMentor() != null && m.getId().equals(g.getMentor().getId()))
+                    .map(StudyGroup::getGroupCode)
+                    .collect(Collectors.toList());
+
+            int workloadHours = assignedGroups.size() * 6;
+
+            return BranchMentorDto.builder()
+                    .id(m.getId())
+                    .fullName(m.getFullName())
+                    .role(m.getRole())
+                    .email(m.getEmail())
+                    .phone(m.getPhone())
+                    .specialization(m.getBio() != null ? m.getBio() : m.getRole())
+                    .assignedGroupCount(assignedGroups.size())
+                    .assignedGroups(assignedGroups)
+                    .weeklyWorkloadHours(workloadHours)
+                    .status(m.getStatus() != null ? m.getStatus() : "ACTIVE")
+                    .build();
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<BranchActivityDto> getBranchAuditLogs(Long branchId) {
+        getEntityById(branchId);
+        List<AuditLog> allLogs = auditLogRepository.findTop50ByOrderByCreatedAtDesc();
+        String idStr = String.valueOf(branchId);
+
+        return allLogs.stream()
+                .filter(a -> ("Branch".equalsIgnoreCase(a.getEntityName()) && idStr.equals(a.getEntityId()))
+                        || ("Room".equalsIgnoreCase(a.getEntityName()))
+                        || ("StudyGroup".equalsIgnoreCase(a.getEntityName())))
+                .map(a -> BranchActivityDto.builder()
+                        .id(a.getId())
+                        .action(a.getAction())
+                        .entityName(a.getEntityName())
+                        .entityId(a.getEntityId())
+                        .performedBy(a.getPerformedBy())
+                        .outcome(a.getOutcome())
+                        .details(a.getDetails())
+                        .createdAt(a.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public BranchRoomDto createRoom(Long branchId, CreateRoomRequest req, String actor) {
+        Branch branch = getEntityById(branchId);
+        String name = req.getName().trim();
+
+        if (roomRepository.existsByBranchIdAndNameIgnoreCase(branchId, name)) {
+            throw new BusinessException("Ushbu filialda bunday nomli xona allaqachon mavjud: " + name);
+        }
+
+        Room room = Room.builder()
+                .name(name)
+                .branch(branch)
+                .branchLocation(branch.getName())
+                .capacity(req.getCapacity() != null ? req.getCapacity() : 16)
+                .roomType(req.getRoomType() != null ? req.getRoomType().toUpperCase(Locale.ROOT) : "IT_LAB")
+                .status(req.getStatus() != null ? req.getStatus().toUpperCase(Locale.ROOT) : "ACTIVE")
+                .build();
+
+        Room saved = roomRepository.save(room);
+        auditService.logAction("ROOM_CREATED", "Room", String.valueOf(saved.getId()), actor,
+                "Filialga (" + branch.getName() + ") yangi xona qo'shildi: " + saved.getName() + " (" + saved.getCapacity() + " o'rin)");
+
+        return BranchRoomDto.builder()
+                .id(saved.getId())
+                .name(saved.getName())
+                .branchId(branch.getId())
+                .branchName(branch.getName())
+                .roomType(saved.getRoomType())
+                .capacity(saved.getCapacity())
+                .status(saved.getStatus())
+                .currentOccupancy(0)
+                .assignedGroups(List.of())
+                .availabilityStatus("AVAILABLE")
+                .build();
+    }
+
+    @Transactional
+    public BranchRoomDto updateRoom(Long branchId, Long roomId, UpdateRoomRequest req, String actor) {
+        Branch branch = getEntityById(branchId);
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Xona topilmadi: #" + roomId));
+
+        if (room.getBranch() == null || !branchId.equals(room.getBranch().getId())) {
+            throw new BusinessException("Ushbu xona mazkur filialga tegishli emas");
+        }
+
+        String name = req.getName().trim();
+        if (roomRepository.existsByBranchIdAndNameIgnoreCaseAndIdNot(branchId, name, roomId)) {
+            throw new BusinessException("Ushbu filialda bunday nomli boshqa xona mavjud: " + name);
+        }
+
+        room.setName(name);
+        if (req.getRoomType() != null && !req.getRoomType().isBlank()) {
+            room.setRoomType(req.getRoomType().toUpperCase(Locale.ROOT));
+        }
+        if (req.getCapacity() != null && req.getCapacity() > 0) {
+            room.setCapacity(req.getCapacity());
+        }
+        if (req.getStatus() != null && !req.getStatus().isBlank()) {
+            room.setStatus(req.getStatus().toUpperCase(Locale.ROOT));
+        }
+
+        Room saved = roomRepository.save(room);
+        auditService.logAction("ROOM_UPDATED", "Room", String.valueOf(saved.getId()), actor,
+                "Filial (" + branch.getName() + ") xonasi ma'lumotlari yangilandi: " + saved.getName());
+
+        return BranchRoomDto.builder()
+                .id(saved.getId())
+                .name(saved.getName())
+                .branchId(branch.getId())
+                .branchName(branch.getName())
+                .roomType(saved.getRoomType())
+                .capacity(saved.getCapacity())
+                .status(saved.getStatus())
+                .currentOccupancy(0)
+                .assignedGroups(List.of())
+                .availabilityStatus("AVAILABLE")
+                .build();
+    }
+
+    @Transactional
+    public void deleteOrDeactivateRoom(Long branchId, Long roomId, String actor) {
+        Branch branch = getEntityById(branchId);
+        Room room = roomRepository.findById(roomId)
+                .orElseThrow(() -> new ResourceNotFoundException("Xona topilmadi: #" + roomId));
+
+        if (room.getBranch() == null || !branchId.equals(room.getBranch().getId())) {
+            throw new BusinessException("Ushbu xona mazkur filialga tegishli emas");
+        }
+
+        boolean isReferenced = studyGroupRepository.findByBranchId(branchId).stream()
+                .anyMatch(g -> room.getName().equalsIgnoreCase(g.getRoom()));
+
+        if (isReferenced) {
+            room.setStatus("INACTIVE");
+            roomRepository.save(room);
+            auditService.logAction("ROOM_DEACTIVATED", "Room", String.valueOf(roomId), actor,
+                    "Xona nofaol holatga o'tkazildi (faol guruhlar biriktirilganligi sababli): " + room.getName());
+        } else {
+            roomRepository.delete(room);
+            auditService.logAction("ROOM_DELETED", "Room", String.valueOf(roomId), actor,
+                    "Xona o'chirildi: " + room.getName() + " filial: " + branch.getName());
+        }
     }
 
     public BranchDto toDto(Branch b) {

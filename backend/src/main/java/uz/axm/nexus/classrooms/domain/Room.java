@@ -23,5 +23,14 @@ public class Room extends BaseEntity {
     @JoinColumn(name = "branch_id")
     private Branch branch;
 
-    private Integer capacity; // Masalan: 16 kompyuterli o'rin
+    @Builder.Default
+    private Integer capacity = 16; // Masalan: 16 kompyuterli o'rin
+
+    @Builder.Default
+    @Column(name = "room_type", length = 50)
+    private String roomType = "IT_LAB"; // "IT_LAB", "THEORY_ROOM", "ROBOTICS_LAB", "CONFERENCE_HALL"
+
+    @Builder.Default
+    @Column(nullable = false, length = 30)
+    private String status = "ACTIVE"; // "ACTIVE", "MAINTENANCE", "INACTIVE"
 }

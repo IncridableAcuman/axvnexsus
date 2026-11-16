@@ -161,7 +161,7 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
     }
     const timer = setTimeout(() => {
       if (typeof scheduleApi.preview === 'function') {
-        scheduleApi.preview({
+        const previewPromise = scheduleApi.preview({
           dayPattern: schedulingMode,
           days: selectedDays.join(', '),
           startDate,
@@ -169,13 +169,16 @@ export const ManualScheduleModal: React.FC<ManualScheduleModalProps> = ({
           startTime,
           endTime,
           room,
-        }).then((res) => {
-          if (res?.data) {
-            setPreview(res.data);
-          }
-        }).catch(() => {
-          // Gracefully ignore preview fetch errors
         });
+        if (previewPromise && typeof previewPromise.then === 'function') {
+          previewPromise.then((res) => {
+            if (res?.data) {
+              setPreview(res.data);
+            }
+          }).catch(() => {
+            // Gracefully ignore preview fetch errors
+          });
+        }
       }
     }, 400);
     return () => clearTimeout(timer);

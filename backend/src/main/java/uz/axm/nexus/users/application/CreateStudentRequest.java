@@ -24,4 +24,5 @@ public class CreateStudentRequest {
     private String pinfl;
     private String district;
     private String branchLocation;
+    private Long branchId;
 }
