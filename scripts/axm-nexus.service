@@ -1,0 +1,29 @@
+[Unit]
+Description=AXM Nexus Ta'lim Tizimi (Docker Compose Production Stack)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/axvhub
+User=root
+Group=root
+
+# Ishga tushirishdan oldin konteynerlar holatini tekshirish
+ExecStart=/usr/bin/docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+# To'xtatish buyrug'i
+ExecStop=/usr/bin/docker compose -f docker-compose.prod.yml down
+
+# Qayta yuklash
+ExecReload=/usr/bin/docker compose -f docker-compose.prod.yml restart
+
+TimeoutStartSec=300
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target

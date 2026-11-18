@@ -162,9 +162,11 @@ cd frontend && npm run lint && npm run build
 
 ## 🚀 Ishlab Chiqarishga O‘rnatish (Production Deployment)
 
-Batafsil arxitektura, xavfsizlik auditlari, zaxiralash, monitoring va ishlab chiqarish konfiguratsiyasi uchun qarang:
+Real Linux serverga (Ubuntu/Debian VPS) professional o'rnatish, SSL/TLS, zaxiralash, monitoring va xavfsizlik sozlamalari bo'yicha to'liq qo'llanma:
+- [Real Linux Server Deployment Qo‘llanmasi (DEPLOYMENT_REAL_SERVER.md)](file:///home/izzatbek/Desktop/axvhub/DEPLOYMENT_REAL_SERVER.md)
 - [Ishlab Chiqarishga Tayyorgarlik va Deployment Qo‘llanmasi (Module 17)](file:///home/izzatbek/Desktop/axvhub/docs/deployment/12-production-deployment-guide.md)
-- [Production Docker Compose Konfiguratsiyasi](file:///home/izzatbek/Desktop/axvhub/docker-compose.prod.yml)
+- [Production Docker Compose Konfiguratsiyasi (docker-compose.prod.yml)](file:///home/izzatbek/Desktop/axvhub/docker-compose.prod.yml)
+- [Ishlab chiqarish uchun .env namunasi (.env.production.example)](file:///home/izzatbek/Desktop/axvhub/.env.production.example)
 
 ---
 

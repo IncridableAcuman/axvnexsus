@@ -20,7 +20,11 @@ RUN ./gradlew bootJar -x test --no-daemon
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-RUN addgroup -S spring && adduser -S spring -G spring
+# Non-root user va fayllar saqlash katalogini tayyorlash
+RUN addgroup -S spring && adduser -S spring -G spring && \
+    mkdir -p /app/uploads/resources && \
+    chown -R spring:spring /app
+
 USER spring:spring
 
 COPY --from=builder --chown=spring:spring /workspace/build/libs/*.jar app.jar

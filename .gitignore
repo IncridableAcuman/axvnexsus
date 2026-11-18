@@ -33,3 +33,5 @@ dist-ssr/
 *.log
 logs/
 .system_generated/
+backups/
+*.sql.gz

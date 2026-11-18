@@ -10,8 +10,8 @@ server:
 spring:
   datasource:
     hikari:
-      maximum-pool-size: 5
-      minimum-idle: 1
+      maximum-pool-size: ${DB_POOL_MAX:15}
+      minimum-idle: ${DB_POOL_MIN_IDLE:3}
       idle-timeout: 15000
       pool-name: NexusProdHikariPool
       max-lifetime: 600000
@@ -67,11 +67,15 @@ logging:
 
 app:
   cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://yangiariq-aqua.onrender.com}
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://axm-nexus.uz,https://www.axm-nexus.uz}
   seeder:
     demo-data-enabled: ${APP_SEEDER_DEMO_DATA_ENABLED:false}
   security:
-    allow-public-registration: false
-    captcha-required: true
+    allow-public-registration: ${ALLOW_PUBLIC_REGISTRATION:false}
+    captcha-required: ${CAPTCHA_REQUIRED:false}
     superadmin-bootstrap:
       enabled: ${SUPER_ADMIN_BOOTSTRAP_ENABLED:false}
+      username: ${SUPER_ADMIN_BOOTSTRAP_USERNAME:admin}
+      password: ${SUPER_ADMIN_BOOTSTRAP_PASSWORD:}
+      email: ${SUPER_ADMIN_BOOTSTRAP_EMAIL:admin@axm-nexus.uz}
+      full-name: ${SUPER_ADMIN_BOOTSTRAP_FULL_NAME:Tizim Super Administratori}

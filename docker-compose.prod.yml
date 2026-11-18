@@ -31,23 +31,29 @@ services:
     networks:
       - nexus-prod-network
 
-  redis:
-    image: redis:7-alpine
-    container_name: nexus-prod-redis
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: nexus-prod-rabbitmq
     restart: unless-stopped
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Redis password required}", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-nexus_mq_user}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RabbitMQ password required}
     volumes:
-      - redis_prod_data:/data
+      - rabbitmq_prod_data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       retries: 5
+      start_period: 20s
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: '1.0'
           memory: 512M
+        reservations:
+          cpus: '0.2'
+          memory: 128M
     logging:
       driver: "json-file"
       options:
@@ -70,12 +76,22 @@ services:
       DB_NAME: ${POSTGRES_DB:-axvhub}
       DB_USER: ${POSTGRES_USER:-axm_admin}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      DB_POOL_MAX: ${DB_POOL_MAX:-15}
+      DB_POOL_MIN_IDLE: ${DB_POOL_MIN_IDLE:-3}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-nexus_mq_user}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       APP_JWT_SECRET: ${APP_JWT_SECRET:?JWT secret key required}
       APP_BASE_URL: ${APP_BASE_URL:-https://axm-nexus.uz}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://axm-nexus.uz,https://www.axm-nexus.uz}
+      ALLOW_PUBLIC_REGISTRATION: ${ALLOW_PUBLIC_REGISTRATION:-false}
+      CAPTCHA_REQUIRED: ${CAPTCHA_REQUIRED:-false}
+      SUPER_ADMIN_BOOTSTRAP_ENABLED: ${SUPER_ADMIN_BOOTSTRAP_ENABLED:-false}
+      SUPER_ADMIN_BOOTSTRAP_USERNAME: ${SUPER_ADMIN_BOOTSTRAP_USERNAME:-admin}
+      SUPER_ADMIN_BOOTSTRAP_PASSWORD: ${SUPER_ADMIN_BOOTSTRAP_PASSWORD:-}
+      SUPER_ADMIN_BOOTSTRAP_EMAIL: ${SUPER_ADMIN_BOOTSTRAP_EMAIL:-admin@axm-nexus.uz}
+      SUPER_ADMIN_BOOTSTRAP_FULL_NAME: ${SUPER_ADMIN_BOOTSTRAP_FULL_NAME:-Tizim Super Administratori}
       MAIL_HOST: ${MAIL_HOST:-smtp.gmail.com}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
@@ -83,10 +99,13 @@ services:
       MAIL_FROM: ${MAIL_FROM:-noreply@axm-nexus.uz}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - backend_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
+      rabbitmq:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
@@ -142,7 +161,8 @@ services:
 
 volumes:
   postgres_prod_data:
-  redis_prod_data:
+  rabbitmq_prod_data:
+  backend_uploads:
 
 networks:
   nexus-prod-network:
