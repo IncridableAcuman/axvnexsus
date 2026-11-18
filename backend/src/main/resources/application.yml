@@ -98,6 +98,14 @@ springdoc:
     operations-sorter: alpha
 
 app:
+  storage:
+    provider: ${STORAGE_PROVIDER:auto}
+    s3:
+      endpoint: ${AWS_ENDPOINT_URL_S3:https://br-dark-math-beyvvxd8.storage.c-9.us-east-2.aws.neon.tech}
+      access-key: ${AWS_ACCESS_KEY_ID:}
+      secret-key: ${AWS_SECRET_ACCESS_KEY:}
+      region: ${AWS_REGION:us-east-2}
+      bucket: ${S3_BUCKET_NAME:${AWS_S3_BUCKET:assets}}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
   seeder:

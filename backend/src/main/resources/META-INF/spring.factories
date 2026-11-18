@@ -1,0 +1,2 @@
+org.springframework.boot.env.EnvironmentPostProcessor=\
+  uz.axm.nexus.shared.infrastructure.NeonDatabaseEnvironmentPostProcessor

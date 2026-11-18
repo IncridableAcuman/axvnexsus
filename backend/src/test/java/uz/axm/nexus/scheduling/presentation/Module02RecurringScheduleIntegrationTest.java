@@ -545,7 +545,7 @@ class Module02RecurringScheduleIntegrationTest {
                 .dayPattern("ODD_DAYS")
                 .startTime("09:30")
                 .endTime("11:00")
-                .room("Lab 1")
+                .room("Lab Unique Conflict 1")
                 .branchLocation("IT Park Yangiariq filiali")
                 .branchId(branchYangiariq.getId())
                 .build();
@@ -563,7 +563,7 @@ class Module02RecurringScheduleIntegrationTest {
                 .dayPattern("ODD_DAYS")
                 .startTime("09:30")
                 .endTime("11:00")
-                .room("Lab 2")
+                .room("Lab Unique Conflict 2")
                 .branchLocation("IT Park Yangiariq filiali")
                 .branchId(branchYangiariq.getId())
                 .build();

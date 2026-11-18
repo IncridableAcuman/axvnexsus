@@ -1,8 +1,11 @@
 # ==============================================================================
-# Render Infrastructure Blueprint — YANGIARIQ AQUA AI / AXV Nexus
+# Render Infrastructure Blueprint — AXV Nexus / YANGIARIQ AQUA AI
 # Services:
-#   1. Backend Web Service: yangiariq-aqua-api (Spring Boot / Java 21 / Docker)
+#   1. Backend Web Service: yangiariq-aqua-api (Spring Boot 4 / Java 21 / Docker)
 #   2. Frontend Static Site: yangiariq-aqua (React 19 / Vite / Tailwind v4)
+# Database & Storage:
+#   - Database: Neon Serverless PostgreSQL (Pooled connection, PgBouncer compatible)
+#   - Storage: Neon S3-Compatible Object Storage (Neon Files / Bucket: assets)
 # ==============================================================================
 
 services:
@@ -22,14 +25,20 @@ services:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
 
+      # ------------------------------------------------------------------------
       # Database Configuration (Neon PostgreSQL)
-      # Can be supplied either via JDBC_DATABASE_URL or discrete credentials
+      # Accepts either NEON_URL / DATABASE_URL connection string or discrete fields
+      # ------------------------------------------------------------------------
+      - key: NEON_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
       - key: DB_HOST
         sync: false
       - key: DB_PORT
         value: "5432"
       - key: DB_NAME
-        value: axvhub
+        value: neondb
       - key: DB_USER
         sync: false
       - key: DB_PASSWORD
@@ -37,7 +46,25 @@ services:
       - key: DB_SSL
         value: "?sslmode=require&prepareThreshold=0"
 
+      # ------------------------------------------------------------------------
+      # Object Storage Configuration (Neon S3 Storage / Neon Files)
+      # ------------------------------------------------------------------------
+      - key: STORAGE_PROVIDER
+        value: neon
+      - key: AWS_ENDPOINT_URL_S3
+        value: https://br-dark-math-beyvvxd8.storage.c-9.us-east-2.aws.neon.tech
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-2
+      - key: S3_BUCKET_NAME
+        value: assets
+
+      # ------------------------------------------------------------------------
       # Security & JWT Configuration
+      # ------------------------------------------------------------------------
       - key: APP_JWT_SECRET
         generateValue: true
       - key: CORS_ALLOWED_ORIGINS
@@ -45,23 +72,46 @@ services:
       - key: APP_BASE_URL
         value: https://yangiariq-aqua.onrender.com
 
-      # SuperAdmin Provisioning (Disabled by default in production)
+      # ------------------------------------------------------------------------
+      # SuperAdmin Provisioning (Optional for first-time production setup)
+      # ------------------------------------------------------------------------
       - key: SUPER_ADMIN_BOOTSTRAP_ENABLED
         value: "false"
+      - key: SUPER_ADMIN_BOOTSTRAP_USERNAME
+        value: admin
+      - key: SUPER_ADMIN_BOOTSTRAP_PASSWORD
+        sync: false
+      - key: SUPER_ADMIN_BOOTSTRAP_EMAIL
+        value: admin@axm-nexus.uz
 
+      # ------------------------------------------------------------------------
       # Application Controls
+      # ------------------------------------------------------------------------
       - key: ALLOW_PUBLIC_REGISTRATION
         value: "false"
       - key: CAPTCHA_REQUIRED
-        value: "true"
+        value: "false"
       - key: APP_SEEDER_DEMO_DATA_ENABLED
         value: "false"
 
-      # AI Provider
+      # ------------------------------------------------------------------------
+      # Async Services (RabbitMQ & Mail)
+      # Safely disabled on Render free web service by default
+      # ------------------------------------------------------------------------
+      - key: RABBITMQ_AUTO_STARTUP
+        value: "false"
+      - key: MAIL_ENABLED
+        value: "false"
+
+      # ------------------------------------------------------------------------
+      # AI Provider (Groq / Gemini)
+      # ------------------------------------------------------------------------
       - key: AI_PROVIDER
         value: groq
       - key: GROQ_API_KEY
         sync: false
+      - key: GROQ_MODEL
+        value: llama-3.1-8b-instant
 
   # ============================================================================
   # Frontend Static Site
