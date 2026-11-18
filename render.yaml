@@ -116,8 +116,9 @@ services:
   # ============================================================================
   # Frontend Static Site
   # ============================================================================
-  - type: static
+  - type: web
     name: yangiariq-aqua
+    runtime: static
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
