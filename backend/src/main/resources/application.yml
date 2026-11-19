@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
   shutdown: graceful
 
 spring:
@@ -14,9 +14,9 @@ spring:
       fail-on-unknown-properties: false
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:${DB_URL:${DATABASE_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:axvhub}${DB_SSL:}}}}
-    username: ${SPRING_DATASOURCE_USERNAME:${DB_USER:izzatbek}}
-    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:postgres}}
+    url: ${SPRING_DATASOURCE_URL:${DB_URL:${DATABASE_URL:${NEON_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:axvhub}${DB_SSL:}}}}}
+    username: ${NEON_USER:${SPRING_DATASOURCE_USERNAME:${DB_USER:izzatbek}}}
+    password: ${NEON_PASS:${NEON_PASSWORD:${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:postgres}}}}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: ${DB_POOL_MAX:10}

@@ -24,6 +24,7 @@ flowchart TD
 - **Backend**: Render Web Service (Docker multi-stage, non-root `spring` foydalanuvchisi, Actuator healthcheck).
 - **Ma'lumotlar bazasi**: Neon Serverless PostgreSQL (`ep-...-pooler` orqali PgBouncer pooling).
 - **Fayllar xotirasi (Storage)**: Neon S3-compatible Object Storage (serverless, konteyner qayta ishga tushganda ham ma'lumotlar o‘chib ketmaydi).
+- **Kesh (Redis)**: Loyiha to‘liq holatsiz (stateless) va tranzaksion so‘rovlar PostgreSQL orqali samarali boshqariladi. Backend kodida Redis'ga ehtiyoj yo‘qligi sababli, Render bepul limitlarini tejash va ortiqcha xarajatlarning oldini olish uchun Redis olib tashlandi.
 
 ---
 
@@ -59,6 +60,15 @@ AWS_REGION=us-east-2
 S3_BUCKET_NAME=assets
 ```
 
+### 2.3. Kesh (Redis) Masalasi Tahlili va Qaror
+Foydalanuvchi talabi bo‘yicha Redis infratuzilmasi to‘liq tekshirildi:
+1. **Kod bazasi auditi**: Backend (Spring Boot 4) kodlarida `org.springframework.data.redis`, `RedisTemplate` yoki Redis kesh annotatsiyalari umuman mavjud emas. Loyiha to‘liq stateless bo‘lib, ma'lumotlar tezkorligi HikariCP pool va PostgreSQL indekslari orqali ta'minlangan.
+2. **Resurs va Xarajat**: Render platformasida bo‘sh turgan yoki ishlatilmaydigan Redis servisini ishga tushirish bepul xizmatlar limitini cheklaydi yoki ortiqcha to‘lov talab qiladi.
+3. **Qilingan amallar**:
+   - `docker-compose.yaml` dan keraksiz `redis` konteyneri va `redis_data` volume olib tashlandi.
+   - `.env` va `.env.example` dan `REDIS_PORT` olib tashlandi.
+   - `render.yaml` faylida Redis olib tashlandi, lekin agar kelajakda (masalan, sessiyalar yoki rate limit uchun) kerak bo‘lib qolsa, blueprintga qo‘shish uchun tayyor `type: keyvalue` shabloni izoh sifatida qoldirildi.
+
 ---
 
 ## 3. Render da Blueprint orqali Bir Klikda O‘rnatish
@@ -84,12 +94,29 @@ Render bir vaqtning o‘zida:
 
 ---
 
-## 4. Neon Storage Ishini Lokal Sinovdan O‘tkazish
+## 4. Neon Storage Ishini Lokal Sinovdan O‘tkazish (`npmpackages.txt` integratsiyasi)
 
-Neon S3 Object Storage ulanishini terminal orqali tekshirish uchun maxsus skript yaratilgan:
+`frontend/npmpackages.txt` faylida keltirilgan rasmiy Neon S3 sozlamalari, paketlar va kod namunalari asosida loyihada testlash va integratsiya imkoniyati yaratilgan.
+
+### 4.1. Foydalanish mumkin bo'lgan SDK to'plamlari:
+* **Node.js (@aws-sdk)**:
+  ```bash
+  npm i @aws-sdk/client-s3 @aws-sdk/s3-request-presigner dotenv
+  ```
+* **Node.js (Files SDK / Neon adapter)**:
+  ```bash
+  npm i files-sdk @aws-sdk/client-s3 @aws-sdk/lib-storage @aws-sdk/s3-presigned-post @aws-sdk/s3-request-presigner dotenv
+  ```
+* **Python (Boto3)**:
+  ```bash
+  pip install boto3
+  ```
+
+### 4.2. Sinov skriptini ishga tushirish
+Neon S3 Object Storage ulanishini terminal orqali tekshirish uchun `scripts/test-neon-storage.mjs` skripti yaratilgan. U `@aws-sdk` o‘rnatilgan bo‘lsa undan foydalanadi, o‘rnatilmagan bo‘lsa Node.js 18+ ning ichki `crypto` va `fetch` moduli orqali to‘g‘ridan-to‘g‘ri SigV4 imzosi bilan ishlaydi:
 
 ```bash
-# S3 tekshiruv skriptini ishga tushirish
+# S3 tekshiruv skriptini ishga tushirish (0-dependency yoki @aws-sdk bilan)
 node scripts/test-neon-storage.mjs
 ```
 

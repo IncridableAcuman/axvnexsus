@@ -36,6 +36,19 @@ public class NeonDatabaseEnvironmentPostProcessor implements EnvironmentPostProc
         }
 
         Map<String, Object> resolvedProps = parseDatabaseUrl(dbUrl);
+
+        String neonUser = environment.getProperty("NEON_USER");
+        if (neonUser != null && !neonUser.isBlank()) {
+            resolvedProps.put("spring.datasource.username", neonUser.trim());
+        }
+        String neonPass = environment.getProperty("NEON_PASS");
+        if (neonPass == null || neonPass.isBlank()) {
+            neonPass = environment.getProperty("NEON_PASSWORD");
+        }
+        if (neonPass != null && !neonPass.isBlank()) {
+            resolvedProps.put("spring.datasource.password", neonPass.trim());
+        }
+
         if (!resolvedProps.isEmpty()) {
             environment.getPropertySources().addFirst(new MapPropertySource(PROPERTY_SOURCE_NAME, resolvedProps));
         }

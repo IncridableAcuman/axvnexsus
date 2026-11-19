@@ -19,17 +19,6 @@ services:
     networks:
       - nexus-network
 
-  redis:
-    image: redis:7-alpine
-    container_name: nexus-redis
-    restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - nexus-network
-
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: nexus-rabbitmq
@@ -80,8 +69,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
       rabbitmq:
         condition: service_started
     networks:
@@ -102,7 +89,6 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
   rabbitmq_data:
 
 networks:

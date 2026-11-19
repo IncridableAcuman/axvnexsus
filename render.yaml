@@ -6,6 +6,12 @@
 # Database & Storage:
 #   - Database: Neon Serverless PostgreSQL (Pooled connection, PgBouncer compatible)
 #   - Storage: Neon S3-Compatible Object Storage (Neon Files / Bucket: assets)
+# Caching (Redis):
+#   - Loyiha to'liq holatsiz (stateless) arxitekturada qurilgan va tranzaksion
+#     keshlash PostgreSQL/HikariCP orqali optimal ta'minlanadi.
+#   - Backend kod bazasida Redis bog'liqligi talab etilmaganligi sababli, ortiqcha
+#     resurs sarfini va Render bepul limitlarini tejash maqsadida Redis olib tashlangan.
+#   - Kelajakda Redis talab etilsa, fayl oxiridagi `keyvalue` bloki orqali faollashtirish mumkin.
 # ==============================================================================
 
 services:
@@ -31,6 +37,10 @@ services:
       # ------------------------------------------------------------------------
       - key: NEON_URL
         sync: false
+      - key: NEON_USER
+        sync: false
+      - key: NEON_PASS
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: DB_HOST
@@ -54,7 +64,7 @@ services:
       - key: AWS_ENDPOINT_URL_S3
         value: https://br-dark-math-beyvvxd8.storage.c-9.us-east-2.aws.neon.tech
       - key: AWS_ACCESS_KEY_ID
-        sync: false
+        value: nak_live_a830d72ca13646aaae231f0a1c17d35e
       - key: AWS_SECRET_ACCESS_KEY
         sync: false
       - key: AWS_REGION
@@ -130,3 +140,11 @@ services:
     envVars:
       - key: VITE_API_BASE_URL
         value: https://yangiariq-aqua-api.onrender.com/api
+
+  # ============================================================================
+  # Optional Redis / Key-Value Instance (Kelajakda kesh kerak bo'lsa faollashtiring)
+  # ============================================================================
+  # - type: keyvalue
+  #   name: yangiariq-aqua-redis
+  #   plan: free
+  #   ipAllowList: [] # Faqat Render ichki tarmog'iga ulanishga ruxsat

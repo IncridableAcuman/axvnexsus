@@ -87,8 +87,9 @@ Platforma 8-sinfdan 11-sinfgacha bo‘lgan iqtidorli o‘quvchilar, ularning IT 
 
 - **Infratuzilma & DevOps:**
   - Docker & Docker Compose
-  - PostgreSQL 16 Alpine
-  - Redis 7 Alpine
+  - PostgreSQL 16 Alpine / Neon Serverless Postgres
+  - Neon S3-Compatible Object Storage
+  - Render Blueprint Deployment (render.yaml)
   - GitHub Actions CI/CD
 
 ---
@@ -120,8 +121,7 @@ cp .env.example .env
 ```bash
 docker compose up -d
 ```
-* Baza: `localhost:5432` (PostgreSQL)
-* Kesh: `localhost:6379` (Redis)
+* Baza: `localhost:5432` (PostgreSQL / Neon)
 * Backend API: `http://localhost:8080`
 * Swagger UI: `http://localhost:8080/swagger-ui.html`
 * Health Check: `http://localhost:8080/api/v1/health`
@@ -131,7 +131,7 @@ docker compose up -d
 
 #### PostgreSQLni yoqish:
 ```bash
-docker compose up -d postgres redis
+docker compose up -d postgres
 ```
 
 #### Backendni ishga tushirish:
