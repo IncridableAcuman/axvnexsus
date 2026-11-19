@@ -27,8 +27,8 @@ class NeonS3StorageProviderTest {
         storageProvider = new NeonS3StorageProvider(
                 "https://br-dark-math-beyvvxd8.storage.c-9.us-east-2.aws.neon.tech",
                 "assets",
-                "nak_live_a830d72ca13646aaae231f0a1c17d35e",
-                "nsk_live_1f92bc1985936e64ba5131a79c12fa1e07ef821f54f8ab9f7d1c1cc1825e7bfc",
+                "AKIAIOSFODNN7EXAMPLE",
+                "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
                 "us-east-2",
                 mockFallbackProvider
         );

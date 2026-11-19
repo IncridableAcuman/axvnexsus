@@ -33,28 +33,11 @@ services:
 
       # ------------------------------------------------------------------------
       # Database Configuration (Neon PostgreSQL)
-      # Accepts either NEON_URL / DATABASE_URL connection string or discrete fields
+      # Yagona NEON_URL kiritish kifoya. Tizim avtomatik ravishda barcha kerakli
+      # parametrlarni (host, port, user, password, ssl, pooler) ajratib oladi.
       # ------------------------------------------------------------------------
       - key: NEON_URL
         sync: false
-      - key: NEON_USER
-        sync: false
-      - key: NEON_PASS
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-      - key: DB_HOST
-        sync: false
-      - key: DB_PORT
-        value: "5432"
-      - key: DB_NAME
-        value: neondb
-      - key: DB_USER
-        sync: false
-      - key: DB_PASSWORD
-        sync: false
-      - key: DB_SSL
-        value: "?sslmode=require&prepareThreshold=0"
 
       # ------------------------------------------------------------------------
       # Object Storage Configuration (Neon S3 Storage / Neon Files)
@@ -64,7 +47,7 @@ services:
       - key: AWS_ENDPOINT_URL_S3
         value: https://br-dark-math-beyvvxd8.storage.c-9.us-east-2.aws.neon.tech
       - key: AWS_ACCESS_KEY_ID
-        value: nak_live_a830d72ca13646aaae231f0a1c17d35e
+        sync: false
       - key: AWS_SECRET_ACCESS_KEY
         sync: false
       - key: AWS_REGION
@@ -78,21 +61,15 @@ services:
       - key: APP_JWT_SECRET
         generateValue: true
       - key: CORS_ALLOWED_ORIGINS
-        value: https://yangiariq-aqua.onrender.com
+        value: https://yangiariq-aqua-3zrr.onrender.com,https://yangiariq-aqua.onrender.com,https://*.onrender.com
       - key: APP_BASE_URL
-        value: https://yangiariq-aqua.onrender.com
+        value: https://yangiariq-aqua-3zrr.onrender.com
 
       # ------------------------------------------------------------------------
-      # SuperAdmin Provisioning (Optional for first-time production setup)
+      # SuperAdmin Provisioning (Bootstrap o'chirilgan, faollashtirish shart emas)
       # ------------------------------------------------------------------------
       - key: SUPER_ADMIN_BOOTSTRAP_ENABLED
         value: "false"
-      - key: SUPER_ADMIN_BOOTSTRAP_USERNAME
-        value: admin
-      - key: SUPER_ADMIN_BOOTSTRAP_PASSWORD
-        sync: false
-      - key: SUPER_ADMIN_BOOTSTRAP_EMAIL
-        value: admin@axm-nexus.uz
 
       # ------------------------------------------------------------------------
       # Application Controls

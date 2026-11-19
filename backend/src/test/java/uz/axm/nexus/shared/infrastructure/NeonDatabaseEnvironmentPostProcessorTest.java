@@ -15,13 +15,13 @@ class NeonDatabaseEnvironmentPostProcessorTest {
     @Test
     @DisplayName("Neon URL connection string to'g'ri JDBC parametrlariga aylantirilishi kerak")
     void shouldParseNeonDatabaseUrlCorrectly() {
-        String neonUrl = "postgresql://neondb_owner:npg_jsnEFky5RY2a@ep-hidden-pine-benajq9a-pooler.c-9.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+        String neonUrl = "postgresql://neondb_owner:dummy_neon_password_123@ep-hidden-pine-benajq9a-pooler.c-9.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
 
         Map<String, Object> props = NeonDatabaseEnvironmentPostProcessor.parseDatabaseUrl(neonUrl);
 
         assertThat(props).isNotEmpty();
         assertThat(props.get("spring.datasource.username")).isEqualTo("neondb_owner");
-        assertThat(props.get("spring.datasource.password")).isEqualTo("npg_jsnEFky5RY2a");
+        assertThat(props.get("spring.datasource.password")).isEqualTo("dummy_neon_password_123");
 
         String jdbcUrl = (String) props.get("spring.datasource.url");
         assertThat(jdbcUrl).startsWith("jdbc:postgresql://ep-hidden-pine-benajq9a-pooler.c-9.us-east-2.aws.neon.tech:5432/neondb?");

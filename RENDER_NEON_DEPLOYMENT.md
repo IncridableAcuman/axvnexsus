@@ -35,17 +35,17 @@ Loyihada maxsus `NeonDatabaseEnvironmentPostProcessor` joriy qilingan. Render yo
 
 * **Variant A (Tavsiya etiladi - yagona URL)**:
   ```env
-  NEON_URL=postgresql://neondb_owner:npg_jsnEFky5RY2a@ep-hidden-pine-benajq9a-pooler.c-9.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+  NEON_URL=postgresql://neondb_owner:YOUR_NEON_PASSWORD@ep-your-branch-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require
   ```
   *(Tizim avtomatik ravishda parolni, foydalanuvchini ajratib oladi va `prepareThreshold=0` ni ulaydi).*
 
 * **Variant B (Alohida o‘zgaruvchilar)**:
   ```env
-  DB_HOST=ep-hidden-pine-benajq9a-pooler.c-9.us-east-2.aws.neon.tech
+  DB_HOST=ep-your-branch-pooler.us-east-2.aws.neon.tech
   DB_PORT=5432
   DB_NAME=neondb
   DB_USER=neondb_owner
-  DB_PASSWORD=npg_jsnEFky5RY2a
+  DB_PASSWORD=YOUR_NEON_PASSWORD
   DB_SSL=?sslmode=require&prepareThreshold=0
   ```
 
@@ -53,9 +53,9 @@ Loyihada maxsus `NeonDatabaseEnvironmentPostProcessor` joriy qilingan. Render yo
 Fayllar (darsliklar, PDF, slaydlar, taqdimotlar va h.k.) Neon S3 xotirasida saqlanadi:
 ```env
 STORAGE_PROVIDER=neon
-AWS_ENDPOINT_URL_S3=https://br-dark-math-beyvvxd8.storage.c-9.us-east-2.aws.neon.tech
-AWS_ACCESS_KEY_ID=nak_live_a830d72ca13646aaae231f0a1c17d35e
-AWS_SECRET_ACCESS_KEY=nsk_live_1f92bc1985936e64ba5131a79c12fa1e07ef821f54f8ab9f7d1c1cc1825e7bfc
+AWS_ENDPOINT_URL_S3=https://your-neon-storage-endpoint.aws.neon.tech
+AWS_ACCESS_KEY_ID=YOUR_NEON_S3_ACCESS_KEY
+AWS_SECRET_ACCESS_KEY=YOUR_NEON_S3_SECRET_KEY
 AWS_REGION=us-east-2
 S3_BUCKET_NAME=assets
 ```
@@ -81,11 +81,11 @@ Loyihaning ildiz qismida to‘liq sozlangan `render.yaml` mavjud.
 4. Render avtomatik ravishda `render.yaml` ni o‘qiydi va 2 ta servisni aniqlaydi:
    - **`yangiariq-aqua-api`** (Docker Web Service)
    - **`yangiariq-aqua`** (Frontend Static Site)
-5. **Sync qiluvchi o‘zgaruvchilar (Sync: false bo‘lgan qiymatlar)** uchun quyidagilarni kiriting:
-   - `NEON_URL`: Neon konsolidan olingan PostgreSQL URL.
-   - `AWS_ACCESS_KEY_ID`: `nak_live_a830d72ca13646aaae231f0a1c17d35e`
-   - `AWS_SECRET_ACCESS_KEY`: `nsk_live_1f92bc1985936e64ba5131a79c12fa1e07ef821f54f8ab9f7d1c1cc1825e7bfc`
-   - `GROQ_API_KEY`: Groq API kaliti (agar AI funksiyalari kerak bo‘lsa).
+5. **Sync qiluvchi o‘zgaruvchilar (Sync: false bo‘lgan 3 ta maxfiy qiymat)** uchun quyidagilarni kiriting:
+   - `NEON_URL`: Neon konsolidan olingan PostgreSQL URL (`.env` dagi `NEON_URL`)
+   - `AWS_SECRET_ACCESS_KEY`: Neon S3 maxfiy kaliti (`.env` dagi `AWS_SECRET_ACCESS_KEY`)
+   - `GROQ_API_KEY`: Groq AI kaliti (`.env` dagi `GROQ_API_KEY`)
+   *(Izoh: Barcha ortiqcha `DB_HOST`, `DB_USER`, `DB_PASSWORD` va `SUPER_ADMIN_BOOTSTRAP_PASSWORD` olib tashlangan, tizim yagona `NEON_URL` orqali to'liq ishlaydi).*
 6. **"Apply"** tugmasini bosing.
 
 Render bir vaqtning o‘zida:

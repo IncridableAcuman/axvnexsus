@@ -16,8 +16,8 @@ class AwsSigV4SignerTest {
     private final AwsSigV4Signer signer = new AwsSigV4Signer(
             "us-east-2",
             "s3",
-            "nak_live_a830d72ca13646aaae231f0a1c17d35e",
-            "nsk_live_1f92bc1985936e64ba5131a79c12fa1e07ef821f54f8ab9f7d1c1cc1825e7bfc"
+            "AKIAIOSFODNN7EXAMPLE",
+            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
     );
 
     @Test
@@ -44,7 +44,7 @@ class AwsSigV4SignerTest {
         assertThat(signedHeaders).containsKey("x-amz-content-sha256");
 
         String auth = signedHeaders.get("Authorization");
-        assertThat(auth).startsWith("AWS4-HMAC-SHA256 Credential=nak_live_a830d72ca13646aaae231f0a1c17d35e/20261118/us-east-2/s3/aws4_request");
+        assertThat(auth).startsWith("AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20261118/us-east-2/s3/aws4_request");
         assertThat(auth).contains("SignedHeaders=");
         assertThat(auth).contains("Signature=");
         assertThat(signedHeaders.get("x-amz-date")).isEqualTo("20261118T120000Z");
@@ -65,7 +65,7 @@ class AwsSigV4SignerTest {
         assertThat(presignedUrl).isNotNull();
         assertThat(presignedUrl).startsWith("https://br-dark-math-beyvvxd8.storage.c-9.us-east-2.aws.neon.tech/assets/uploads/file.txt?");
         assertThat(presignedUrl).contains("X-Amz-Algorithm=AWS4-HMAC-SHA256");
-        assertThat(presignedUrl).contains("X-Amz-Credential=nak_live_a830d72ca13646aaae231f0a1c17d35e");
+        assertThat(presignedUrl).contains("X-Amz-Credential=AKIAIOSFODNN7EXAMPLE");
         assertThat(presignedUrl).contains("X-Amz-Date=20261118T120000Z");
         assertThat(presignedUrl).contains("X-Amz-Expires=3600");
         assertThat(presignedUrl).contains("X-Amz-Signature=");

@@ -29,7 +29,7 @@ public class WebConfig implements WebMvcConfigurer {
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
                     .toArray(String[]::new);
-            registration.allowedOrigins(origins);
+            registration.allowedOriginPatterns(origins);
         }
     }
 

@@ -36,9 +36,9 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const endpoint = process.env.AWS_ENDPOINT_URL_S3 || "https://br-dark-math-beyvvxd8.storage.c-9.us-east-2.aws.neon.tech";
-const accessKeyId = process.env.AWS_ACCESS_KEY_ID || "nak_live_a830d72ca13646aaae231f0a1c17d35e";
-const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || "nsk_live_1f92bc1985936e64ba5131a79c12fa1e07ef821f54f8ab9f7d1c1cc1825e7bfc";
+const endpoint = process.env.AWS_ENDPOINT_URL_S3 || "";
+const accessKeyId = process.env.AWS_ACCESS_KEY_ID || "";
+const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || "";
 const region = process.env.AWS_REGION || "us-east-2";
 const bucket = process.env.S3_BUCKET_NAME || "assets";
 
